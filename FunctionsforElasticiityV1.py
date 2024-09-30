@@ -15,7 +15,6 @@ warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 np.random.seed(42)
 
-
 class DataPreprocessor:
     def __init__(self, file_path, days_lag=1):
         self.file_path = file_path
@@ -36,9 +35,15 @@ class DataPreprocessor:
         logger.debug(f"Reading input data...")
         self.data = pd.read_csv(self.file_path, index_col='datetime')
         self.data.index = pd.to_datetime(self.data.index, format='%Y-%m-%d %H:%M:%S')
-        self.n_periods = self.data.index.hour.unique().shape[0]
-        self.list_hours = self.data.index.hour.unique().to_list()
-        self.n_panels = int(self.data.index.shape[0] / self.n_periods) - 1
+        
+        inferred_freq = pd.infer_freq(self.data.index)
+        if inferred_freq != 'H':
+            logger.debug(f"Data frequency is {inferred_freq}, resampling to hourly intervals...")
+            self.data = self.data.resample('H').sum()
+        
+        self.n_periods = len(self.data.index.hour.unique())
+        self.list_hours = self.data.index.hour.unique().tolist()
+        self.n_panels = self.n_panels = int(self.data.index.shape[0] / self.n_periods) - 1
 
     def process_data(self):
         logger.debug(f"Processing input data...")
@@ -82,7 +87,6 @@ class DataPreprocessor:
 
         return Y, T, W, X, self.n_periods, self.list_hours
 
-
 class ElasticityModel:
     def __init__(self, Y, T, W, X, n_periods, list_hours, daily_confounders, model_y_type='RandomForest',
                  model_t_type='RandomForest', cv=5, random_state=42, mc_iters=3):
@@ -101,19 +105,25 @@ class ElasticityModel:
         self.model_y_type = model_y_type
         self.model_t_type = model_t_type
 
+        # Initialize model_y
+        self.model_y = None
+
+    def set_model_y(self):
+        if self.model_y_type == 'RandomForest':
+            self.model_y = RandomForestRegressor()
+        elif self.model_y_type == 'LinearRegression':
+            self.model_y = LinearRegression()
+        elif self.model_y_type == 'XGBoost':
+            self.model_y = XGBRegressor()
+        else:
+            raise ValueError(f"Unsupported model_y_type: {self.model_y_type}")
+
     def create_model(self):
         logger.debug(
             f"Training DML model with cv={self.cv}, random_state={self.random_state}, mc_iters={self.mc_iters}...")
 
-        # Initialize models based on specified types
-        if self.model_y_type == 'RandomForest':
-            model_y = RandomForestRegressor()
-        elif self.model_y_type == 'LinearRegression':
-            model_y = LinearRegression()
-        elif self.model_y_type == 'XGBoost':
-            model_y = XGBRegressor()
-        else:
-            raise ValueError(f"Unsupported model_y_type: {self.model_y_type}")
+        # Set model_y using the new method
+        self.set_model_y()
 
         if self.model_t_type == 'RandomForest':
             model_t = RandomForestRegressor()
@@ -126,7 +136,7 @@ class ElasticityModel:
 
         # Initialize LinearDML model
         self.model = LinearDML(
-            model_y=model_y,
+            model_y=self.model_y,
             model_t=model_t,
             cv=self.cv,
             random_state=self.random_state,
@@ -142,43 +152,6 @@ class ElasticityModel:
         except Exception as e:
             logger.debug(f'Scores for nuisance models are unavailable: {e}')
         logger.debug(f"Final model (MSE): {round(self.model.score_, 3)}")
-
-    def plot_elasticities(self, confounder):
-        logger.debug(f"Calculating Price Elasticity Matrices for each unique value of {confounder}...")
-        unique_values = np.unique(self.X[:, self.daily_confounders.index(confounder)])
-
-        for value in unique_values:
-            value_indices = np.where(self.X[:, self.daily_confounders.index(confounder)] == value)
-            if len(value_indices) == 0:
-                logger.debug(f"No data for {confounder} = {value}")
-                continue
-
-            elasticity = self.model.const_marginal_effect(X=self.X[value_indices])
-            # Check the shape of the elasticity array
-            print(f"Shape of elasticity for {confounder} = {value}:", elasticity.shape)
-
-            # Adjust the reshape operation based on the actual size of the elasticity array
-            try:
-                # Calculate the expected size for reshaping
-                expected_size = self.n_periods * self.n_periods
-                if elasticity.size != expected_size:
-                    raise ValueError(f"Expected size {expected_size}, but got {elasticity.size}")
-
-                elasticity_transposed = np.transpose(elasticity).reshape(1, self.n_periods, self.n_periods)
-            except ValueError as e:
-                logger.debug(f"Reshape error: {e}")
-                continue
-
-            fig, ax = plt.subplots(1, 1)
-            vmin = min(np.min(elasticity_transposed), np.min(elasticity_transposed))
-            vmax = max(np.max(elasticity_transposed), np.max(elasticity_transposed))
-            sns.heatmap(elasticity_transposed, annot=True, fmt=".2f",
-                        center=0, cmap='vlag', cbar=True, ax=ax,
-                        annot_kws={"size": 6}, vmin=vmin, vmax=vmax)
-            ax.set(xlabel='Hour', ylabel='Hour', title=f'Elasticity for {confounder} = {value}')
-            ax.set_xticklabels(self.list_hours)
-            ax.set_yticklabels(self.list_hours)
-            plt.show()
 
 if __name__ == "__main__":
     file_path = "coopernico_data.csv"
