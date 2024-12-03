@@ -15,7 +15,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from numba.core.errors import NumbaDeprecationWarning
-
+from sklearn.decomposition import FactorAnalysis
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 np.random.seed(42)
