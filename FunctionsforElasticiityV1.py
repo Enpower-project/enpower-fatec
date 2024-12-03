@@ -152,6 +152,18 @@ class DataPreprocessor:
         logger.debug(f"Feature Importance:\n{feature_importance}")
         return feature_importance
 
+
+    def perform_factor_analysis(self):
+        logger.debug("Performing Factor Analysis for variable reduction...")
+        confounders_df = self.data[self.hourly_confounders + self.daily_confounders].dropna()
+        scaler = StandardScaler()
+        confounders_scaled = scaler.fit_transform(confounders_df)
+        fa = FactorAnalysis(n_components=5, random_state=42)
+        fa.fit(confounders_scaled)
+        factor_loadings = pd.DataFrame(fa.components_, columns=confounders_df.columns).T
+        low_loading_vars = factor_loadings[factor_loadings.abs().max(axis=1) < 0.4].index.tolist()
+        return low_loading_vars
+
     def process_data(self):
         logger.debug(f"Processing input data...")
 
@@ -207,7 +219,7 @@ class DataPreprocessor:
         feature_importance_results = self.calculate_feature_importance()
 
         # Return all processed data including VIF and feature importance
-        return Y, T, W, X, self.n_periods, self.list_hours, vif_results, feature_importance_results
+        return Y, T, W, X, self.n_periods, self.list_hours, vif_results, feature_importance_results, low_loading_vars
 
 class ElasticityModel:
     def __init__(self, Y, T, W, X, n_periods, list_hours, daily_confounders, model_y_type='RandomForest',
@@ -312,7 +324,7 @@ if __name__ == "__main__":
     preprocessor.read_data()
     preprocessor.calendar_data()
     preprocessor.weather_data()
-    Y, T, W, X, n_periods, list_hours,vif_results, feature_importance_results = preprocessor.process_data()
+    Y, T, W, X, n_periods, list_hours,vif_results, feature_importance_results, low_loading_vars = preprocessor.process_data()
 
  # Test model
     preprocessor = DataPreprocessor(file_path, target_y_col, target_t_col, city)
