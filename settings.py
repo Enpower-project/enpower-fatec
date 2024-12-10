@@ -1,10 +1,4 @@
-source = {'coopernico': {'target_t_col': 'price (EUR/MWh)',
-                         'target_y_col': 'consumption (MWh)',
-                         'units_t': 'EUR/MWh',
-                         'units_y': 'MWh'},
-          'ceve': {},
-          'cuerva': {'target_t_col': 'price (EUR/MWh)',
-                     'target_y_col': 'Energy imported from the grid (Wh)',
-                     'units_t': 'EUR/MWh',
-                     'units_y': 'Wh'},
-          }
+# Description: This file contains the settings for the application.
+
+# Coordinates for the cities
+coordinates = {'Porto': {'latitude': 41.14961, 'longitude': -8.61099, 'country': 'Portugal'}}

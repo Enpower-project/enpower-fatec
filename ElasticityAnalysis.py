@@ -1,4 +1,5 @@
-from settings import source
+from settings import coordinates
+from processing.process_partners import process_data_partners
 
 import holidays
 import requests
@@ -7,7 +8,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from loguru import logger
-from dotenv import load_dotenv
 import matplotlib.pyplot as plt
 from xgboost import XGBRegressor
 from econml.dml import LinearDML
@@ -24,9 +24,10 @@ np.random.seed(42)
 
 
 class DataPreprocessor:
-    def __init__(self, file_path_, target_y_col_, target_t_col_, city_, days_lag=None):
-        self.file_path = file_path_
-        self.days_lag = days_lag
+    def __init__(self, partner_, city_, days_lag_=None):
+        self.partner = partner_
+        self.city = city_
+        self.days_lag = days_lag_
         self.data = None
         self.n_periods = None
         self.n_panels = None
@@ -37,23 +38,26 @@ class DataPreprocessor:
         self.vif_results = None
         self.feature_importance_results = None
         self.low_loading_vars = None
-        self.target_y_col = target_y_col_
-        self.target_t_col = target_t_col_
-        self.city = city_
+        self.target_y_col = 'consumption (kWh)'
+        self.target_t_col = 'price (EUR/kWh)'
         self.target_y = 'log_consumption'
         self.target_t = 'log_price'
-        self.hourly_confounders = ['consumption_lag_1', 'consumption_lag_7']
-        self.daily_confounders = ['month', 'day', 'weekend', 'weekday', 'temperature', 'precipitation']
+        self.hourly_confounders = []
+        self.daily_confounders = ['month', 'day', 'weekend', 'weekday', 'temperature', 'precipitation', 'consumption_lag_1', 'consumption_lag_7']
         self.effect_shifters = []
 
-        geolocator = Nominatim(user_agent="enpower-fatec")
-        location = geolocator.geocode(self.city)
-        self.latitude, self.longitude = location.latitude, location.longitude
-        self.country = location.address.split(', ')[1]
+        if self.city not in coordinates:
+            geolocator = Nominatim(user_agent="enpower-fatec")
+            location = geolocator.geocode(self.city)
+            self.latitude, self.longitude = location.latitude, location.longitude
+            self.country = location.address.split(', ')[1]
+        else:
+            self.latitude, self.longitude = coordinates[self.city]['latitude'], coordinates[self.city]['longitude']
+            self.country = coordinates[self.city]['country']
 
     def read_data(self):
         logger.debug(f"Reading input data...")
-        self.data = pd.read_csv(self.file_path, index_col='datetime')
+        self.data = process_data_partners(self.partner, None)
         self.data.index = pd.to_datetime(self.data.index, format='%Y-%m-%d %H:%M:%S')
         
         inferred_freq = pd.infer_freq(self.data.index)
@@ -181,10 +185,16 @@ class DataPreprocessor:
             self.n_panels = self.n_panels - max(self.days_lag)
 
         # Remove very-high-consumption days
-        threshold = 0.02
+        threshold = 20
         data_filter = self.data.groupby(pd.Grouper(freq='1D')).mean()
-        high_consumption_days = data_filter[data_filter[target_y_col] > threshold].index.to_list()
+        high_consumption_days = data_filter[data_filter[self.target_y_col] > threshold].index.to_list()
         self.data = self.data.loc[~np.isin(self.data.index.date, [x.date() for x in high_consumption_days])]
+        self.n_panels = int(self.data.index.shape[0] / self.n_periods)
+
+        # Remove holidays
+        holidays = self.data[self.data['holiday'] == 1].index.strftime('%Y-%m-%d').unique().to_list()
+        self.data = self.data.loc[~np.isin(self.data.index.date, [pd.to_datetime(x).date() for x in holidays])]
+        self.n_panels = int(self.data.index.shape[0] / self.n_periods)
 
         # Filter out incomplete days
         data_filter = self.data.groupby(pd.Grouper(freq='1D')).count()
@@ -195,6 +205,9 @@ class DataPreprocessor:
         self.n_panels = int(self.data.index.shape[0] / self.n_periods)
         data_daily = self.data.resample('D').mean()
         data_daily = data_daily.loc[np.isin(data_daily.index.date, [x.date() for x in complete_days])]
+
+        if self.data.empty:
+            raise ValueError("No data available after filtering.")
 
         # Apply log transformation to target_y_col
         if self.data[self.data[self.target_y_col] == 0].shape[0] > 0:
@@ -239,20 +252,19 @@ class DataPreprocessor:
         # Perform Factor Analysis for variable reduction
         self.low_loading_vars = self.perform_factor_analysis()
 
-        # Return all processed data including VIF and feature importance
+        # Return all processed data
         return Y, T, W, X, self.n_periods, self.list_hours
 
 
 class ElasticityModel:
-    def __init__(self, Y, T, W, X, n_periods, list_hours, daily_confounders, model_y_type='RandomForest',
+    def __init__(self, y, t, w, x, n_periods_, list_hours_, model_y_type='RandomForest',
                  model_t_type='RandomForest', cv=5, random_state=42, mc_iters=3):
-        self.Y = Y
-        self.T = T
-        self.W = W
-        self.X = X
-        self.n_periods = n_periods
-        self.list_hours = list_hours
-        self.daily_confounders = daily_confounders
+        self.Y = y
+        self.T = t
+        self.W = w
+        self.X = x
+        self.n_periods = n_periods_
+        self.list_hours = list_hours_
         self.cv = cv
         self.random_state = random_state
         self.mc_iters = mc_iters
@@ -323,8 +335,7 @@ class ElasticityModel:
         fig, ax = plt.subplots(1, 1)
         vmin = min(np.min(self.elasticity_transposed[0]), np.min(self.elasticity_transposed))
         vmax = max(np.max(self.elasticity_transposed[0]), np.max(self.elasticity_transposed))
-        sns.heatmap(self.elasticity_transposed[0], annot=True, fmt=".2f",
-                    center=0, cmap='vlag', cbar=True, ax=ax,
+        sns.heatmap(self.elasticity_transposed[0], annot=True, fmt=".2f", center=0, cmap='vlag', cbar=True, ax=ax,
                     annot_kws={"size": 6}, vmin=vmin, vmax=vmax)
         ax.set(xlabel='Hour', ylabel='Hour', title='Elasticity')
         ax.set_xticklabels(self.list_hours)
@@ -333,25 +344,22 @@ class ElasticityModel:
 
 
 if __name__ == "__main__":
-    # Inputs
-    partner = 'coopernico'  # Options: ['coopernico', 'ceve', 'cuerva']
+    # Input data
+    partner = 'coopernico'
     city = 'Porto'
-    file_path = f'data/{partner}/coopernico.csv'
 
-    if not source.get(partner):
+    if partner not in ['coopernico', 'ceve', 'cuerva']:
         raise ValueError(f"Partner '{partner}' not found.")
-    target_y_col = source.get(partner).get('target_y_col')
-    target_t_col = source.get(partner).get('target_t_col')
 
     # Data processing
-    preprocessor = DataPreprocessor(file_path, target_y_col, target_t_col, city, days_lag=[1, 7])
+    preprocessor = DataPreprocessor(partner, city, days_lag_=[1, 7])
     preprocessor.read_data()
     preprocessor.calendar_data()
     preprocessor.weather_data()
     Y, T, W, X, n_periods, list_hours = preprocessor.process_data()
 
     # Model training
-    elasticity_model_rf = ElasticityModel(Y, T, W, X, n_periods, list_hours, preprocessor.daily_confounders,
+    elasticity_model_rf = ElasticityModel(Y, T, W, X, n_periods, list_hours,
                                           model_y_type='RandomForest', model_t_type='RandomForest')
     elasticity_model_rf.create_model()
     elasticity_model_rf.evaluate_model()
