@@ -1,3 +1,4 @@
+from sklearn.ensemble import RandomForestRegressor
 import holidays
 import requests
 import warnings
@@ -14,10 +15,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from numba.core.errors import NumbaDeprecationWarning
-
+from sklearn.decomposition import FactorAnalysis
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 np.random.seed(42)
+
 
 
 class DataPreprocessor:
@@ -109,13 +112,68 @@ class DataPreprocessor:
             self.data = pd.concat([self.data, weather_df], axis=1)
         else:
             logger.error("Failed when fetching Weather data.")
+ 
+
+    def calculate_vif(self):
+        """Calculate Variance Inflation Factor (VIF) for confounder columns."""
+        logger.debug("Calculating VIF for confounders...")
+        confounders_df = self.data[self.hourly_confounders + self.daily_confounders].copy()
+        confounders_df.dropna(inplace=True)
+
+        vif_data = pd.DataFrame()
+        vif_data["Variable"] = confounders_df.columns
+        vif_data["VIF"] = [variance_inflation_factor(confounders_df.values, i) 
+                           for i in range(confounders_df.shape[1])]
+
+        logger.debug(f"VIF Data:\n{vif_data}")
+        return vif_data
+
+    def calculate_feature_importance(self):
+        """Calculate feature importance using a RandomForest model on confounders."""
+        logger.debug("Calculating feature importance using RandomForest...")
+
+        # Prepare data for RandomForest model
+        X_features = self.data[self.hourly_confounders + self.daily_confounders].copy()
+        y_target = self.data[self.target_y].copy()
+        
+        # Drop any rows with NaN values
+        X_features.dropna(inplace=True)
+        y_target = y_target.loc[X_features.index]
+
+        # Initialize and train the RandomForest model
+        rf_model = RandomForestRegressor(random_state=42)
+        rf_model.fit(X_features, y_target)
+
+        # Calculate feature importance
+        feature_importance = pd.DataFrame({
+            'Feature': X_features.columns,
+            'Importance': rf_model.feature_importances_
+        }).sort_values(by='Importance', ascending=False)
+
+        logger.debug(f"Feature Importance:\n{feature_importance}")
+        return feature_importance
+
+
+    def perform_factor_analysis(self):
+        logger.debug("Performing Factor Analysis for variable reduction...")
+        confounders_df = self.data[self.hourly_confounders + self.daily_confounders].dropna()
+        scaler = StandardScaler()
+        confounders_scaled = scaler.fit_transform(confounders_df)
+        fa = FactorAnalysis(n_components=5, random_state=42)
+        fa.fit(confounders_scaled)
+        factor_loadings = pd.DataFrame(fa.components_, columns=confounders_df.columns).T
+        low_loading_vars = factor_loadings[factor_loadings.abs().max(axis=1) < 0.4].index.tolist()
+        return low_loading_vars
 
     def process_data(self):
         logger.debug(f"Processing input data...")
+
+        # Shift consumption data by the specified lag
         self.data['consumption_lag'] = self.data[self.target_y_col].shift(self.n_periods * self.days_lag)
         self.data = self.data[self.n_periods * self.days_lag:]
         self.n_panels = self.n_panels - self.days_lag
 
+        # Filter out incomplete days
         data_filter = self.data.groupby(pd.Grouper(freq='1D')).count()
         complete_days = data_filter[(data_filter[self.target_y_col] == self.n_periods) &
                                     (data_filter[self.target_t_col] == self.n_periods) &
@@ -124,6 +182,7 @@ class DataPreprocessor:
         data_daily = self.data.resample('D').mean()
         data_daily = data_daily.loc[np.isin(data_daily.index.date, [x.date() for x in complete_days])]
 
+        # Apply log transformation to target_y_col
         if self.data[self.data[self.target_y_col] == 0].shape[0] > 0:
             self.data[self.target_y] = self.data[self.target_y_col].apply(lambda x: (np.log(x + 0.001)))
         else:
@@ -131,6 +190,7 @@ class DataPreprocessor:
         Y = self.data[[self.target_y]].values
         Y = Y.reshape((self.n_panels, self.n_periods))
 
+        # Apply log transformation to target_t_col
         if self.data[self.data[self.target_t_col] == 0].shape[0] > 0:
             self.data[self.target_t] = self.data[self.target_t_col].apply(lambda x: np.log(x + 0.001))
         else:
@@ -139,6 +199,8 @@ class DataPreprocessor:
         T = T.reshape((self.n_panels, self.n_periods))
 
         logger.debug(f"Processing covariates...")
+
+        # Process hourly and daily confounders
         W = self.data[self.hourly_confounders].values
         W = W.reshape((self.n_panels, self.n_periods * len(self.hourly_confounders)))
         W_aux = pd.DataFrame(W)
@@ -151,8 +213,14 @@ class DataPreprocessor:
         X = self.data[self.effect_shifters].values
         X = X.reshape((self.n_panels, self.n_periods))
 
-        return Y, T, W, X, self.n_periods, self.list_hours
+        # Calculate VIF for confounders
+        vif_results = self.calculate_vif()
 
+        # Calculate feature importance using RandomForest
+        feature_importance_results = self.calculate_feature_importance()
+
+        # Return all processed data including VIF and feature importance
+        return Y, T, W, X, self.n_periods, self.list_hours, vif_results, feature_importance_results, low_loading_vars
 
 class ElasticityModel:
     def __init__(self, Y, T, W, X, n_periods, list_hours, daily_confounders, model_y_type='RandomForest',
@@ -257,7 +325,14 @@ if __name__ == "__main__":
     preprocessor.read_data()
     preprocessor.calendar_data()
     preprocessor.weather_data()
-    Y, T, W, X, n_periods, list_hours = preprocessor.process_data()
+    Y, T, W, X, n_periods, list_hours,vif_results, feature_importance_results, low_loading_vars = preprocessor.process_data()
+
+ # Test model
+    preprocessor = DataPreprocessor(file_path, target_y_col, target_t_col, city)
+    preprocessor.read_data()
+    preprocessor.calendar_data()
+    preprocessor.weather_data()
+    
     elasticity_model_rf = ElasticityModel(Y, T, W, X, n_periods, list_hours, preprocessor.daily_confounders,
                                           model_y_type='RandomForest', model_t_type='RandomForest')
     elasticity_model_rf.create_model()
