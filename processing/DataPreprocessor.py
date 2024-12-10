@@ -1,32 +1,29 @@
-from settings import coordinates
-from processing.process_partners import process_data_partners
+import settings
+from processing.PartnersProcessor import PartnersProcessor
 
 import holidays
 import requests
 import warnings
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from loguru import logger
-import matplotlib.pyplot as plt
-from xgboost import XGBRegressor
-from econml.dml import LinearDML
 from geopy.geocoders import Nominatim
 from sklearn.decomposition import FactorAnalysis
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from numba.core.errors import NumbaDeprecationWarning
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
-np.random.seed(42)
-
 
 class DataPreprocessor:
-    def __init__(self, partner_, city_, days_lag_=None):
-        self.partner = partner_
+    def __init__(self, partner_, city_, consumer_, days_lag_=[1, 7]):
+        if partner_ not in settings.partners:
+            raise ValueError(f"Partner '{partner_}' not found.")
+        else:
+            self.partner = partner_
         self.city = city_
+        self.consumer = consumer_
         self.days_lag = days_lag_
         self.data = None
         self.n_periods = None
@@ -43,28 +40,44 @@ class DataPreprocessor:
         self.target_y = 'log_consumption'
         self.target_t = 'log_price'
         self.hourly_confounders = []
-        self.daily_confounders = ['month', 'day', 'weekend', 'weekday', 'temperature', 'precipitation', 'consumption_lag_1', 'consumption_lag_7']
+        self.daily_confounders = ['day', 'weekday', 'temperature', 'precipitation',
+                                  'consumption_lag_1', 'consumption_lag_7']
         self.effect_shifters = []
+        self.Y = None
+        self.T = None
+        self.W = None
+        self.X = None
 
-        if self.city not in coordinates:
+        if self.city not in settings.coordinates:
             geolocator = Nominatim(user_agent="enpower-fatec")
             location = geolocator.geocode(self.city)
             self.latitude, self.longitude = location.latitude, location.longitude
             self.country = location.address.split(', ')[1]
         else:
-            self.latitude, self.longitude = coordinates[self.city]['latitude'], coordinates[self.city]['longitude']
-            self.country = coordinates[self.city]['country']
+            self.latitude = settings.coordinates[self.city]['latitude']
+            self.longitude = settings.coordinates[self.city]['longitude']
+            self.country = settings.coordinates[self.city]['country']
+
+    def __repr__(self):
+        return f"DataPreprocessor(partner={self.partner}, city={self.city}, days_lag={self.days_lag})"
+
+    def process(self):
+        self.read_data()
+        self.calendar_data()
+        self.weather_data()
+        return self.process_data()
 
     def read_data(self):
-        logger.debug(f"Reading input data...")
-        self.data = process_data_partners(self.partner, None)
+        logger.debug(f"Reading input data for partner '{self.partner}' and consumer '{self.consumer}'...")
+        partner_processing = PartnersProcessor(self.partner, self.consumer)
+        self.data = partner_processing.process()
         self.data.index = pd.to_datetime(self.data.index, format='%Y-%m-%d %H:%M:%S')
-        
+
         inferred_freq = pd.infer_freq(self.data.index)
-        if inferred_freq != 'H':
+        if inferred_freq != 'h':
             logger.debug(f"Data frequency is {inferred_freq}, resampling to hourly intervals...")
             self.data = self.data.resample('h').sum()
-        
+
         self.n_periods = len(self.data.index.hour.unique())
         self.list_hours = self.data.index.hour.unique().tolist()
         self.n_panels = self.n_panels = int(self.data.index.shape[0] / self.n_periods)
@@ -72,7 +85,7 @@ class DataPreprocessor:
         self.end = self.data.index.max()
 
     def calendar_data(self):
-
+        logger.debug(f"Processing calendar data...")
         self.data['day'] = self.data.index.day
         self.data['year'] = self.data.index.year
         self.data['month'] = self.data.index.month
@@ -105,6 +118,7 @@ class DataPreprocessor:
             pass
 
     def weather_data(self):
+        logger.debug(f"Fetching weather data...")
 
         url = (f"https://archive-api.open-meteo.com/v1/era5?latitude="
                f"{self.latitude}&longitude={self.longitude}&"
@@ -120,30 +134,28 @@ class DataPreprocessor:
                                             'precipitation': self.weather['hourly']['precipitation']})
             self.data = pd.concat([self.data, weather_df], axis=1)
         else:
-            logger.error("Failed when fetching Weather data.")
+            raise ValueError(f"Failed to fetch weather data. Status code: {response.status_code}")
 
     def calculate_vif(self):
-        """Calculate Variance Inflation Factor (VIF) for confounder columns."""
         logger.debug("Calculating VIF for confounders...")
+
         confounders_df = self.data[self.hourly_confounders + self.daily_confounders].copy()
         confounders_df.dropna(inplace=True)
 
         vif_data = pd.DataFrame()
         vif_data["Variable"] = confounders_df.columns
-        vif_data["VIF"] = [variance_inflation_factor(confounders_df.values, i) 
+        vif_data["VIF"] = [variance_inflation_factor(confounders_df.values, i)
                            for i in range(confounders_df.shape[1])]
-
-        logger.debug(f"VIF Data:\n{vif_data}")
+        logger.debug(f"{vif_data}")
         return vif_data
 
     def calculate_feature_importance(self):
-        """Calculate feature importance using a RandomForest model on confounders."""
         logger.debug("Calculating feature importance using RandomForest...")
 
         # Prepare data for RandomForest model
         X_features = self.data[self.hourly_confounders + self.daily_confounders].copy()
         y_target = self.data[self.target_y].copy()
-        
+
         # Drop any rows with NaN values
         X_features.dropna(inplace=True)
         y_target = y_target.loc[X_features.index]
@@ -158,11 +170,12 @@ class DataPreprocessor:
             'Importance': rf_model.feature_importances_
         }).sort_values(by='Importance', ascending=False)
 
-        logger.debug(f"Feature Importance:\n{feature_importance}")
+        logger.debug(f"{feature_importance}")
         return feature_importance
 
     def perform_factor_analysis(self):
         logger.debug("Performing Factor Analysis for variable reduction...")
+
         confounders_df = self.data[self.hourly_confounders + self.daily_confounders].dropna()
         scaler = StandardScaler()
         confounders_scaled = scaler.fit_transform(confounders_df)
@@ -171,7 +184,7 @@ class DataPreprocessor:
         factor_loadings = pd.DataFrame(fa.components_, columns=confounders_df.columns).T
         low_loading_vars = factor_loadings[factor_loadings.abs().max(axis=1) < 0.4].index.tolist()
 
-        logger.debug(f"Factor Loadings:\n{low_loading_vars}")
+        logger.debug(f"{low_loading_vars}")
         return low_loading_vars
 
     def process_data(self):
@@ -185,7 +198,7 @@ class DataPreprocessor:
             self.n_panels = self.n_panels - max(self.days_lag)
 
         # Remove very-high-consumption days
-        threshold = 20
+        threshold = 20  # kWh
         data_filter = self.data.groupby(pd.Grouper(freq='1D')).mean()
         high_consumption_days = data_filter[data_filter[self.target_y_col] > threshold].index.to_list()
         self.data = self.data.loc[~np.isin(self.data.index.date, [x.date() for x in high_consumption_days])]
@@ -216,6 +229,7 @@ class DataPreprocessor:
             self.data[self.target_y] = self.data[self.target_y_col].apply(lambda x: (np.log(x)))
         Y = self.data[self.target_y].values
         Y = Y.reshape((self.n_panels, self.n_periods))
+        self.Y = Y
 
         # Apply log transformation to target_t_col
         if self.data[self.data[self.target_t_col] == 0].shape[0] > 0:
@@ -224,10 +238,10 @@ class DataPreprocessor:
             self.data[self.target_t] = self.data[self.target_t_col].apply(lambda x: np.log(x))
         T = self.data[[self.target_t]].values
         T = T.reshape((self.n_panels, self.n_periods))
-
-        logger.debug(f"Processing covariates...")
+        self.T = T
 
         # Process hourly and daily confounders
+        logger.debug(f"Processing covariates...")
         W = self.data[self.hourly_confounders].values
         W = W.reshape((self.n_panels, self.n_periods * len(self.hourly_confounders)))
         W_aux = pd.DataFrame(W)
@@ -235,6 +249,7 @@ class DataPreprocessor:
             W_aux[confounder] = data_daily[confounder].values
         W = W_aux.values
         W = StandardScaler().fit_transform(W)
+        self.W = W
 
         # Separate by effect shifters
         if self.effect_shifters:
@@ -242,127 +257,10 @@ class DataPreprocessor:
             X = X.reshape((self.n_panels, self.n_periods))
         else:
             X = None
+        self.X = X
 
-        # Calculate VIF for confounders
+        # Feature diagnosis
         self.vif_results = self.calculate_vif()
-
-        # Calculate feature importance using RandomForest
         self.feature_importance_results = self.calculate_feature_importance()
-
-        # Perform Factor Analysis for variable reduction
         self.low_loading_vars = self.perform_factor_analysis()
 
-        # Return all processed data
-        return Y, T, W, X, self.n_periods, self.list_hours
-
-
-class ElasticityModel:
-    def __init__(self, y, t, w, x, n_periods_, list_hours_, model_y_type='RandomForest',
-                 model_t_type='RandomForest', cv=5, random_state=42, mc_iters=3):
-        self.Y = y
-        self.T = t
-        self.W = w
-        self.X = x
-        self.n_periods = n_periods_
-        self.list_hours = list_hours_
-        self.cv = cv
-        self.random_state = random_state
-        self.mc_iters = mc_iters
-
-        # Store model type parameters
-        self.model_y_type = model_y_type
-        self.model_t_type = model_t_type
-
-        # Initialize model
-        self.model = None
-        self.model_y = None
-        self.model_t = None
-        self.elasticity = None
-        self.elasticity_transposed = None
-
-    def set_model_y(self):
-        if self.model_y_type == 'RandomForest':
-            self.model_y = RandomForestRegressor()
-        elif self.model_y_type == 'LinearRegression':
-            self.model_y = LinearRegression()
-        elif self.model_y_type == 'XGBoost':
-            self.model_y = XGBRegressor()
-        else:
-            raise ValueError(f"Unsupported model_y_type: {self.model_y_type}")
-
-    def set_model_t(self):
-        if self.model_t_type == 'RandomForest':
-            self.model_t = RandomForestRegressor()
-        elif self.model_t_type == 'LinearRegression':
-            self.model_t = LinearRegression()
-        elif self.model_t_type == 'XGBoost':
-            self.model_t = XGBRegressor()
-        else:
-            raise ValueError(f"Unsupported model_t_type: {self.model_t_type}")
-
-    def create_model(self):
-        logger.debug(
-            f"Training DML model with cv={self.cv}, random_state={self.random_state}, mc_iters={self.mc_iters}...")
-
-        # Set model_y using the new method
-        self.set_model_y()
-        self.set_model_t()
-
-        # Initialize LinearDML model
-        self.model = LinearDML(
-            model_y=self.model_y,
-            model_t=self.model_t,
-            cv=self.cv,
-            random_state=self.random_state,
-            mc_iters=self.mc_iters
-        )
-        self.model.fit(self.Y, self.T, W=self.W, X=self.X, cache_values=True, inference='auto')
-
-    def evaluate_model(self):
-        try:
-            logger.debug(f"Model scores:")
-            logger.debug(f"Model Y (R2): {np.round(self.model.nuisance_scores_y, 3)}")
-            logger.debug(f"Model T (R2): {np.round(self.model.nuisance_scores_t, 3)}")
-        except Exception as e:
-            logger.debug(f'Scores for nuisance models are unavailable: {e}')
-        logger.debug(f"Final model (MSE): {round(self.model.score_, 3)}")
-
-    def plot_elasticities(self):
-        logger.debug(f"Calculating Price Elasticity Matrix...")
-        self.elasticity = self.model.const_marginal_effect(X=self.X)
-        self.elasticity_transposed = np.transpose(self.elasticity[0]).reshape(1, self.n_periods, self.n_periods)
-
-        fig, ax = plt.subplots(1, 1)
-        vmin = min(np.min(self.elasticity_transposed[0]), np.min(self.elasticity_transposed))
-        vmax = max(np.max(self.elasticity_transposed[0]), np.max(self.elasticity_transposed))
-        sns.heatmap(self.elasticity_transposed[0], annot=True, fmt=".2f", center=0, cmap='vlag', cbar=True, ax=ax,
-                    annot_kws={"size": 6}, vmin=vmin, vmax=vmax)
-        ax.set(xlabel='Hour', ylabel='Hour', title='Elasticity')
-        ax.set_xticklabels(self.list_hours)
-        ax.set_yticklabels(self.list_hours)
-        plt.show()
-
-
-if __name__ == "__main__":
-    # Input data
-    partner = 'coopernico'
-    city = 'Porto'
-
-    if partner not in ['coopernico', 'ceve', 'cuerva']:
-        raise ValueError(f"Partner '{partner}' not found.")
-
-    # Data processing
-    preprocessor = DataPreprocessor(partner, city, days_lag_=[1, 7])
-    preprocessor.read_data()
-    preprocessor.calendar_data()
-    preprocessor.weather_data()
-    Y, T, W, X, n_periods, list_hours = preprocessor.process_data()
-
-    # Model training
-    elasticity_model_rf = ElasticityModel(Y, T, W, X, n_periods, list_hours,
-                                          model_y_type='RandomForest', model_t_type='RandomForest')
-    elasticity_model_rf.create_model()
-    elasticity_model_rf.evaluate_model()
-    elasticity_model_rf.plot_elasticities()
-
-    logger.debug(f"End of script.")
