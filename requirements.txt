@@ -1,0 +1,14 @@
+xlrd==2.0.1
+openpyxl==3.1.0
+pandas
+geopy
+scikit-learn
+loguru
+requests
+seaborn
+econml
+xgboost
+numpy
+holidays
+statsmodels
+numba

@@ -79,7 +79,7 @@ class DataPreprocessor:
             self.data = self.data.resample('h').sum()
 
         self.n_periods = len(self.data.index.hour.unique())
-        self.list_hours = self.data.index.hour.unique().tolist()
+        self.list_hours = self.data.index.hour.unique().sort_values().to_list()
         self.n_panels = self.n_panels = int(self.data.index.shape[0] / self.n_periods)
         self.start = self.data.index.min()
         self.end = self.data.index.max()
@@ -128,10 +128,12 @@ class DataPreprocessor:
         if response.status_code == 200:
             self.weather = response.json()
             logger.debug("Weather data fetched successfully.")
-            weather_df = pd.DataFrame(index=self.data.index,
+            weather_df = pd.DataFrame(index=self.weather['hourly']['time'],
                                       data={'temperature': self.weather['hourly']['temperature_2m'],
                                             'wind_speed': self.weather['hourly']['wind_speed_10m'],
                                             'precipitation': self.weather['hourly']['precipitation']})
+            weather_df.index = pd.to_datetime(weather_df.index, format='%Y-%m-%dT%H:%M')
+            weather_df = weather_df[(weather_df.index >= self.start) & (weather_df.index <= self.end)]
             self.data = pd.concat([self.data, weather_df], axis=1)
         else:
             raise ValueError(f"Failed to fetch weather data. Status code: {response.status_code}")

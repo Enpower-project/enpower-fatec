@@ -1,12 +1,10 @@
-from loguru import logger
-
 from processing.DataPreprocessor import DataPreprocessor
-from elasticity.ElasticityAnalysis import ElasticityModel
+from causality.ElasticityAnalysis import ElasticityModel
 
 if __name__ == "__main__":
     # Input data
-    partner = 'coopernico'
-    consumer = 'test'
+    partner = 'cuerva'
+    consumer = '3'
     city = 'Porto'
 
     # Data processing
@@ -14,5 +12,6 @@ if __name__ == "__main__":
     preprocessor.process()
 
     # Model training
-    elasticity_model_rf = ElasticityModel(preprocessor, model_y_type='RandomForest', model_t_type='RandomForest')
+    elasticity_model_rf = ElasticityModel(preprocessor, model_y_type='XGBoost', model_t_type='XGBoost',
+                                          cv=3, mc_iters=5)
     elasticity_model_rf.process(plot=1)
