@@ -3,8 +3,8 @@ from causality.ElasticityAnalysis import ElasticityModel
 
 if __name__ == "__main__":
     # Input data
-    partner = 'cuerva'
-    consumer = '3'
+    partner = 'coopernico'
+    consumer = 'test'
     city = 'Porto'
 
     # Data processing
