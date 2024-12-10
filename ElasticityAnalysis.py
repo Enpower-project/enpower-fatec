@@ -24,7 +24,7 @@ np.random.seed(42)
 
 
 class DataPreprocessor:
-    def __init__(self, file_path_, target_y_col_, target_t_col_, city_, days_lag=1):
+    def __init__(self, file_path_, target_y_col_, target_t_col_, city_, days_lag=None):
         self.file_path = file_path_
         self.days_lag = days_lag
         self.data = None
@@ -42,8 +42,8 @@ class DataPreprocessor:
         self.city = city_
         self.target_y = 'log_consumption'
         self.target_t = 'log_price'
-        self.hourly_confounders = ['temperature', 'precipitation', 'consumption_lag']
-        self.daily_confounders = ['holiday', 'month', 'day', 'year', 'weekend', 'weekday']
+        self.hourly_confounders = ['consumption_lag_1', 'consumption_lag_7']
+        self.daily_confounders = ['month', 'day', 'weekend', 'weekday', 'temperature', 'precipitation']
         self.effect_shifters = []
 
         geolocator = Nominatim(user_agent="enpower-fatec")
@@ -59,7 +59,7 @@ class DataPreprocessor:
         inferred_freq = pd.infer_freq(self.data.index)
         if inferred_freq != 'H':
             logger.debug(f"Data frequency is {inferred_freq}, resampling to hourly intervals...")
-            self.data = self.data.resample('H').sum()
+            self.data = self.data.resample('h').sum()
         
         self.n_periods = len(self.data.index.hour.unique())
         self.list_hours = self.data.index.hour.unique().tolist()
@@ -174,9 +174,17 @@ class DataPreprocessor:
         logger.debug(f"Processing input data...")
 
         # Shift consumption data by the specified lag
-        self.data['consumption_lag'] = self.data[self.target_y_col].shift(self.n_periods * self.days_lag)
-        self.data = self.data[self.n_periods * self.days_lag:]
-        self.n_panels = self.n_panels - self.days_lag
+        if self.days_lag:
+            for lag in self.days_lag:
+                self.data[f'consumption_lag_{lag}'] = self.data[self.target_y_col].shift(self.n_periods * lag)
+            self.data = self.data[self.n_periods * max(self.days_lag):]
+            self.n_panels = self.n_panels - max(self.days_lag)
+
+        # Remove very-high-consumption days
+        threshold = 0.02
+        data_filter = self.data.groupby(pd.Grouper(freq='1D')).mean()
+        high_consumption_days = data_filter[data_filter[target_y_col] > threshold].index.to_list()
+        self.data = self.data.loc[~np.isin(self.data.index.date, [x.date() for x in high_consumption_days])]
 
         # Filter out incomplete days
         data_filter = self.data.groupby(pd.Grouper(freq='1D')).count()
@@ -184,6 +192,7 @@ class DataPreprocessor:
                                     (data_filter[self.target_t_col] == self.n_periods) &
                                     (data_filter['temperature'] == self.n_periods)].index.to_list()
         self.data = self.data.loc[np.isin(self.data.index.date, [x.date() for x in complete_days])]
+        self.n_panels = int(self.data.index.shape[0] / self.n_periods)
         data_daily = self.data.resample('D').mean()
         data_daily = data_daily.loc[np.isin(data_daily.index.date, [x.date() for x in complete_days])]
 
@@ -192,7 +201,7 @@ class DataPreprocessor:
             self.data[self.target_y] = self.data[self.target_y_col].apply(lambda x: (np.log(x + 0.001)))
         else:
             self.data[self.target_y] = self.data[self.target_y_col].apply(lambda x: (np.log(x)))
-        Y = self.data[[self.target_y]].values
+        Y = self.data[self.target_y].values
         Y = Y.reshape((self.n_panels, self.n_periods))
 
         # Apply log transformation to target_t_col
@@ -211,7 +220,7 @@ class DataPreprocessor:
         W_aux = pd.DataFrame(W)
         for confounder in self.daily_confounders:
             W_aux[confounder] = data_daily[confounder].values
-            W = W_aux.values
+        W = W_aux.values
         W = StandardScaler().fit_transform(W)
 
         # Separate by effect shifters
@@ -324,17 +333,18 @@ class ElasticityModel:
 
 
 if __name__ == "__main__":
-    # Test file
-    file_path = "coopernico.csv"
-
-    # Test inputs
-    partner = 'coopernico'
+    # Inputs
+    partner = 'coopernico'  # Options: ['coopernico', 'ceve', 'cuerva']
     city = 'Porto'
+    file_path = f'data/{partner}/coopernico.csv'
+
+    if not source.get(partner):
+        raise ValueError(f"Partner '{partner}' not found.")
     target_y_col = source.get(partner).get('target_y_col')
     target_t_col = source.get(partner).get('target_t_col')
 
     # Data processing
-    preprocessor = DataPreprocessor(file_path, target_y_col, target_t_col, city)
+    preprocessor = DataPreprocessor(file_path, target_y_col, target_t_col, city, days_lag=[1, 7])
     preprocessor.read_data()
     preprocessor.calendar_data()
     preprocessor.weather_data()
