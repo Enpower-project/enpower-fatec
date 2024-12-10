@@ -1,0 +1,10 @@
+source = {'coopernico': {'target_t_col': 'price (EUR/MWh)',
+                         'target_y_col': 'consumption (MWh)',
+                         'units_t': 'EUR/MWh',
+                         'units_y': 'MWh'},
+          'ceve': {},
+          'cuerva': {'target_t_col': 'price (EUR/MWh)',
+                     'target_y_col': 'Energy imported from the grid (Wh)',
+                     'units_t': 'EUR/MWh',
+                     'units_y': 'Wh'},
+          }
