@@ -4,21 +4,21 @@ from os import listdir
 
 
 class PartnersProcessor:
-    def __init__(self, partner, consumer):
+    def __init__(self, partner, consumers):
         self.partner = partner
-        self.consumer = consumer
+        self.consumers = consumers
 
     def __repr__(self):
-        return f"PartnersProcessor(partner={self.partner}, consumer={self.consumer})"
+        return f"PartnersProcessor(partner={self.partner}, consumers={self.consumers})"
 
     def process(self):
         data = None
         if self.partner == 'coopernico':
-            data = PartnersProcessor.coopernico(self.partner, self.consumer)
+            data = PartnersProcessor.coopernico(self.partner, self.consumers)
         elif self.partner == 'ceve':
-            data = PartnersProcessor.ceve(self.partner, self.consumer)
+            data = PartnersProcessor.ceve(self.partner, self.consumers)
         elif self.partner == 'cuerva':
-            data = PartnersProcessor.cuerva(self.partner, self.consumer)
+            data = PartnersProcessor.cuerva(self.partner, self.consumers)
         return data
 
 

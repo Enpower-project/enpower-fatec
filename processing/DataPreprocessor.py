@@ -17,13 +17,14 @@ warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 
 class DataPreprocessor:
-    def __init__(self, partner_, city_, consumer_, days_lag_=[1, 7]):
+    def __init__(self, partner_, city_, consumers_, days_lag_=[1, 7], dir_name=''):
         if partner_ not in settings.partners:
             raise ValueError(f"Partner '{partner_}' not found.")
         else:
             self.partner = partner_
         self.city = city_
-        self.consumer = consumer_
+        self.consumers = consumers_
+        self.dir_name = dir_name
         self.days_lag = days_lag_
         self.data = None
         self.n_periods = None
@@ -68,8 +69,8 @@ class DataPreprocessor:
         return self.process_data()
 
     def read_data(self):
-        logger.debug(f"Reading input data for partner '{self.partner}' and consumer '{self.consumer}'...")
-        partner_processing = PartnersProcessor(self.partner, self.consumer)
+        logger.debug(f"Reading input data for partner '{self.partner}' and consumer '{self.consumers}'...")
+        partner_processing = PartnersProcessor(self.partner, self.consumers)
         self.data = partner_processing.process()
         self.data.index = pd.to_datetime(self.data.index, format='%Y-%m-%d %H:%M:%S')
 
@@ -189,7 +190,7 @@ class DataPreprocessor:
         logger.debug(f"{low_loading_vars}")
         return low_loading_vars
 
-    def process_data(self):
+    def process_data(self, min_days=180):
         logger.debug(f"Processing input data...")
 
         # Shift consumption data by the specified lag
@@ -223,6 +224,8 @@ class DataPreprocessor:
 
         if self.data.empty:
             raise ValueError("No data available after filtering.")
+        elif self.n_panels < min_days:
+            raise ValueError("Insufficient data available after filtering.")
 
         # Apply log transformation to target_y_col
         if self.data[self.data[self.target_y_col] == 0].shape[0] > 0:
