@@ -47,7 +47,7 @@ if __name__ == "__main__":
     # Run analysis
     assert type(partner) == str, "The partner must be a string."
     assert type(city) == str, "The city must be a string."
-    assert type(consumers) == list, "The consumers must be a list of their identifiers."
+    assert type(consumers) == list, "The consumers must be a list."
     run_consumers(partner, city, consumers, plot=1, dir_name=directory_name)
     logger.success(f"Execution completed successfully. Results available in {directory_name}.")
 
