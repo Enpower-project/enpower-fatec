@@ -31,11 +31,6 @@ if __name__ == "__main__":
     # Input data
     inputs = {'partner': 'coopernico', 'consumers': ['test', 'test1', 'test2'], 'city': 'Porto'}
 
-    # Process data
-    partner = inputs['partner']
-    consumers = inputs['consumers']
-    city = inputs['city']
-
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     directory_name = f"results/exec_{timestamp}"
@@ -44,11 +39,16 @@ if __name__ == "__main__":
     logger.add(f"{directory_name}/out.log", level="DEBUG", colorize=False, backtrace=True, diagnose=True)
     json.dump(inputs, open(f"{directory_name}/inputs.json", 'w'))
 
+    # Process data
+    partner = inputs['partner']
+    consumers = inputs['consumers']
+    city = inputs['city']
+
     # Run analysis
     assert type(partner) == str, "The partner must be a string."
     assert type(city) == str, "The city must be a string."
     assert type(consumers) == list, "The consumers must be a list of their identifiers."
     run_consumers(partner, city, consumers, plot=1, dir_name=directory_name)
-
+    logger.success(f"Execution completed successfully. Results available in {directory_name}.")
 
 
