@@ -1,14 +1,17 @@
-import json
-
 from processing.DataPreprocessor import DataPreprocessor
 from causality.ElasticityAnalysis import ElasticityModel
 
 import os
+import json
 from loguru import logger
 from datetime import datetime
 
 
-def run_consumers(partner, city, consumers, plot=1, dir_name=''):
+def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
+    assert type(partner) == str, "The partner must be a string."
+    assert type(city) == str, "The city must be a string."
+    assert type(consumers) == list, "The consumers must be a list."
+
     logger.debug(f"Processing consumers: {consumers}")
     out = {}
     consumer_elasticities = []
@@ -24,12 +27,12 @@ def run_consumers(partner, city, consumers, plot=1, dir_name=''):
     if len(consumers) > 1:
         ranks = ElasticityModel.ranking(consumers, consumer_elasticities, plot=plot, dir_name=dir_name)
         out.update({'ranking': {'order': ranks.index.to_list(), 'magnitude': ranks.values.tolist()}})
-    json.dump(out, open(f"{dir_name}/out.json", 'w'))
+    json.dump(out, open(f"{dir_name}/out.json", 'w'), indent=4)
 
 
 if __name__ == "__main__":
     # Input data
-    inputs = {'partner': 'coopernico', 'consumers': ['test', 'test1', 'test2'], 'city': 'Porto'}
+    inputs = {'partner': 'coopernico', 'consumers': ['test', 'test1', 'test2'], 'city': 'Porto', 'aggregated': 0}
 
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -37,18 +40,14 @@ if __name__ == "__main__":
     if not os.path.exists(directory_name):
         os.makedirs(directory_name)
     logger.add(f"{directory_name}/out.log", level="DEBUG", colorize=False, backtrace=True, diagnose=True)
-    json.dump(inputs, open(f"{directory_name}/inputs.json", 'w'))
+    json.dump(inputs, open(f"{directory_name}/inputs.json", 'w'), indent=4)
 
     # Process data
+    city = inputs['city']
     partner = inputs['partner']
     consumers = inputs['consumers']
-    city = inputs['city']
+    aggregated = inputs['aggregated']
 
     # Run analysis
-    assert type(partner) == str, "The partner must be a string."
-    assert type(city) == str, "The city must be a string."
-    assert type(consumers) == list, "The consumers must be a list."
-    run_consumers(partner, city, consumers, plot=1, dir_name=directory_name)
+    run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=directory_name)
     logger.success(f"Execution completed successfully. Results available in {directory_name}.")
-
-
