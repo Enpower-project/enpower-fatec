@@ -12,27 +12,38 @@ def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
     assert type(city) == str, "The city must be a string."
     assert type(consumers) == list, "The consumers must be a list."
 
-    logger.debug(f"Processing consumers: {consumers}")
     out = {}
     consumer_elasticities = []
-    for i, consumer in enumerate(consumers):
-        logger.debug(f"Running for consumer: {consumer} ({i + 1}/{len(consumers)})")
-        preprocessor = DataPreprocessor(partner, city, consumer, dir_name=dir_name)
-        preprocessor.process()
+    if not aggregated:
+        logger.debug(f"Processing consumers: {consumers}")
+        for i, consumer in enumerate(consumers):
+            logger.debug(f"Running for consumer: {consumer} ({i + 1}/{len(consumers)})")
+            preprocessor = DataPreprocessor(partner, city, consumer, dir_name=dir_name)
+            preprocessor.process()
+            elasticity_model = ElasticityModel(preprocessor, model_y_type='XGBoost', model_t_type='XGBoost',
+                                               cv=3, mc_iters=2, dir_name=dir_name)
+            elasticity_model.process(plot=plot)
+            consumer_elasticities.append(elasticity_model.elasticity[0])
+            out.update({consumer: consumer_elasticities[i].tolist()})
+        if len(consumers) > 1:
+            ranks = ElasticityModel.ranking(consumers, consumer_elasticities, plot=plot, dir_name=dir_name)
+            out.update({'ranking': {'order': ranks.index.to_list(), 'magnitude': ranks.values.tolist()}})
+        json.dump(out, open(f"{dir_name}/out.json", 'w'), indent=4)
+    else:
+        logger.debug(f"Processing aggregated consumers: {consumers}")
+        preprocessor = DataPreprocessor(partner, city, consumers, dir_name=dir_name)
+        preprocessor.process(diagnose=True)
         elasticity_model = ElasticityModel(preprocessor, model_y_type='XGBoost', model_t_type='XGBoost',
                                            cv=3, mc_iters=2, dir_name=dir_name)
         elasticity_model.process(plot=plot)
-        consumer_elasticities.append(elasticity_model.elasticity[0])
-        out.update({consumer: consumer_elasticities[i].tolist()})
-    if len(consumers) > 1:
-        ranks = ElasticityModel.ranking(consumers, consumer_elasticities, plot=plot, dir_name=dir_name)
-        out.update({'ranking': {'order': ranks.index.to_list(), 'magnitude': ranks.values.tolist()}})
-    json.dump(out, open(f"{dir_name}/out.json", 'w'), indent=4)
+        consumer_elasticities = elasticity_model.elasticity[0]
+        out.update({'aggregated': consumer_elasticities.tolist()})
+        json.dump(out, open(f"{dir_name}/out.json", 'w'), indent=4)
 
 
 if __name__ == "__main__":
     # Input data
-    inputs = {'partner': 'coopernico', 'consumers': ['test', 'test1', 'test2'], 'city': 'Porto', 'aggregated': 0}
+    inputs = {'partner': 'coopernico', 'consumers': ['test', 'test1', 'test2'], 'city': 'Porto', 'aggregated': 1}
 
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

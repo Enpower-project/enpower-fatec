@@ -105,9 +105,9 @@ class ElasticityModel:
         logger.debug(f"Calculating Price Elasticity Matrix...")
         self.elasticity_transposed = np.transpose(self.elasticity[0]).reshape(1, self.n_periods, self.n_periods)
 
-        fig, ax = plt.subplots(1, 1)
-        vmin = min(np.min(self.elasticity_transposed[0]), np.min(self.elasticity_transposed))
-        vmax = max(np.max(self.elasticity_transposed[0]), np.max(self.elasticity_transposed))
+        fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+        vmin = np.min(self.elasticity_transposed)
+        vmax = np.max(self.elasticity_transposed)
         sns.heatmap(self.elasticity_transposed[0], annot=True, fmt=".2f", center=0, cmap='vlag', cbar=True, ax=ax,
                     annot_kws={"size": 6}, vmin=vmin, vmax=vmax)
         ax.set(xlabel='Hour', ylabel='Hour', title='Elasticity')

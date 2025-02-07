@@ -1,4 +1,5 @@
 import settings
+from processing.DataDiagnosis import Diagnosis
 from processing.PartnersProcessor import PartnersProcessor
 
 import holidays
@@ -8,11 +9,8 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 from geopy.geocoders import Nominatim
-from sklearn.decomposition import FactorAnalysis
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestRegressor
 from numba.core.errors import NumbaDeprecationWarning
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 
@@ -62,15 +60,34 @@ class DataPreprocessor:
     def __repr__(self):
         return f"DataPreprocessor(partner={self.partner}, city={self.city}, days_lag={self.days_lag})"
 
-    def process(self):
-        self.read_data()
-        self.calendar_data()
-        self.weather_data()
-        return self.process_data()
+    def process(self, diagnose=True):
+        if type(self.consumers) == list:
+            consumers_dict = {}
+            for consumer in self.consumers:
+                data_consumer = self.read_data(consumer)
+                consumers_dict.update({consumer: data_consumer})
+            # Filter by common index
+            min_timestamp = min([consumers_dict[consumer].index.min() for consumer in self.consumers])
+            max_timestamp = max([consumers_dict[consumer].index.max() for consumer in self.consumers])
+            aggregated_data = pd.DataFrame(index=pd.date_range(start=min_timestamp, end=max_timestamp, freq='h'))
+            for consumer in self.consumers:
+                data_consumer = consumers_dict[consumer]
+                data_consumer = data_consumer.reindex(aggregated_data.index)
+                aggregated_data[consumer] = data_consumer['consumption (kWh)'].copy()
+            # Sum consumption of all consumers
+            aggregated = pd.DataFrame(aggregated_data.sum(axis=1), columns=['consumption (kWh)'])
+            aggregated['price (EUR/kWh)'] = data_consumer['price (EUR/kWh)'].copy()
+            self.data = aggregated
 
-    def read_data(self):
-        logger.debug(f"Reading input data for partner '{self.partner}' and consumer '{self.consumers}'...")
-        partner_processing = PartnersProcessor(self.partner, self.consumers)
+        else:
+            self.read_data(self.consumers)
+        self.calendar_data()
+        self.weather_data()  # todo: consumer-specific weather data when running aggregated
+        return self.process_data(diagnose=diagnose)
+
+    def read_data(self, consumer):
+        logger.debug(f"Reading input data for partner '{self.partner}' and consumer '{consumer}'...")
+        partner_processing = PartnersProcessor(self.partner, consumer)
         self.data = partner_processing.process()
         self.data.index = pd.to_datetime(self.data.index, format='%Y-%m-%d %H:%M:%S')
 
@@ -84,6 +101,8 @@ class DataPreprocessor:
         self.n_panels = self.n_panels = int(self.data.index.shape[0] / self.n_periods)
         self.start = self.data.index.min()
         self.end = self.data.index.max()
+
+        return self.data
 
     def calendar_data(self):
         logger.debug(f"Processing calendar data...")
@@ -139,58 +158,7 @@ class DataPreprocessor:
         else:
             raise ValueError(f"Failed to fetch weather data. Status code: {response.status_code}")
 
-    def calculate_vif(self):
-        logger.debug("Calculating VIF for confounders...")
-
-        confounders_df = self.data[self.hourly_confounders + self.daily_confounders].copy()
-        confounders_df.dropna(inplace=True)
-
-        vif_data = pd.DataFrame()
-        vif_data["Variable"] = confounders_df.columns
-        vif_data["VIF"] = [variance_inflation_factor(confounders_df.values, i)
-                           for i in range(confounders_df.shape[1])]
-        logger.debug(f"{vif_data}")
-        return vif_data
-
-    def calculate_feature_importance(self):
-        logger.debug("Calculating feature importance using RandomForest...")
-
-        # Prepare data for RandomForest model
-        X_features = self.data[self.hourly_confounders + self.daily_confounders].copy()
-        y_target = self.data[self.target_y].copy()
-
-        # Drop any rows with NaN values
-        X_features.dropna(inplace=True)
-        y_target = y_target.loc[X_features.index]
-
-        # Initialize and train the RandomForest model
-        rf_model = RandomForestRegressor(random_state=42)
-        rf_model.fit(X_features, y_target)
-
-        # Calculate feature importance
-        feature_importance = pd.DataFrame({
-            'Feature': X_features.columns,
-            'Importance': rf_model.feature_importances_
-        }).sort_values(by='Importance', ascending=False)
-
-        logger.debug(f"{feature_importance}")
-        return feature_importance
-
-    def perform_factor_analysis(self):
-        logger.debug("Performing Factor Analysis for variable reduction...")
-
-        confounders_df = self.data[self.hourly_confounders + self.daily_confounders].dropna()
-        scaler = StandardScaler()
-        confounders_scaled = scaler.fit_transform(confounders_df)
-        fa = FactorAnalysis(n_components=5, random_state=42)
-        fa.fit(confounders_scaled)
-        factor_loadings = pd.DataFrame(fa.components_, columns=confounders_df.columns).T
-        low_loading_vars = factor_loadings[factor_loadings.abs().max(axis=1) < 0.4].index.tolist()
-
-        logger.debug(f"{low_loading_vars}")
-        return low_loading_vars
-
-    def process_data(self, min_days=180):
+    def process_data(self, min_days=180, diagnose=True):
         logger.debug(f"Processing input data...")
 
         # Shift consumption data by the specified lag
@@ -265,7 +233,7 @@ class DataPreprocessor:
         self.X = X
 
         # Feature diagnosis
-        self.vif_results = self.calculate_vif()
-        self.feature_importance_results = self.calculate_feature_importance()
-        self.low_loading_vars = self.perform_factor_analysis()
-
+        if diagnose:
+            logger.debug("Performing data diagnosis...")
+            diagnosis = Diagnosis(self.data, self.target_y, self.hourly_confounders, self.daily_confounders)
+            diagnosis.execute()
