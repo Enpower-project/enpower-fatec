@@ -12,3 +12,8 @@ numpy
 holidays
 statsmodels
 numba
+python-dotenv
+fastapi
+uvicorn
+sqlalchemy
+psycopg2
