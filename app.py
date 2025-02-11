@@ -54,7 +54,7 @@ def execute_task(task_id: str, task_request: TaskRequest):
     try:
         # Prepare folder
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        directory_name = f"results/exec_{timestamp}"
+        directory_name = f"results/exec_{timestamp}_{task_id}"
         if not os.path.exists(directory_name):
             os.makedirs(directory_name)
         logger.add(f"{directory_name}/out.log", level="DEBUG", colorize=False, backtrace=True, diagnose=True)
@@ -77,7 +77,7 @@ def execute_task(task_id: str, task_request: TaskRequest):
 
     except Exception as e:
         # If an error occurs, update task to "failed"
-        logger.error(f"Error in task execution: {str(e)}")
+        logger.exception(f"Error in task execution")
         task = db.query(Task).filter(Task.id == task_id).first()
         if task:
             task.status = "failed"
@@ -101,7 +101,7 @@ def execute(task_request: TaskRequest, background_tasks: BackgroundTasks):
             id=task_id,
             status="pending",
             result=None,
-            parameters=task_request.dict(),
+            parameters=json.dumps(task_request.dict()),
             launch_time=datetime.utcnow(),
             last_updated=datetime.utcnow()
         )
@@ -136,7 +136,7 @@ def get_result(task_id: str):
             "task_id": task.id,
             "launch_time": task.launch_time,
             "status": task.status,
-            "inputs": task.parameters,
+            "inputs": json.loads(task.parameters),
             "outputs": task.result,
             "last_updated": task.last_updated,
         }
