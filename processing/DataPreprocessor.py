@@ -57,6 +57,10 @@ class DataPreprocessor:
             self.longitude = settings.coordinates[self.city]['longitude']
             self.country = settings.coordinates[self.city]['country']
 
+        available_countries = ['Portugal', 'Spain']
+        if self.country not in available_countries:
+            raise ValueError(f"City '{self.city}' not supported. Available countries: {available_countries}")
+
     def __repr__(self):
         return f"DataPreprocessor(partner={self.partner}, city={self.city}, days_lag={self.days_lag})"
 
@@ -116,26 +120,16 @@ class DataPreprocessor:
         self.data['period'] = (self.data.index.hour % 24 + 4) // 4
         if self.country == 'Portugal':
             holidays_ = holidays.Portugal(subdiv=13)
-            holidays_.get('2025')
-            holidays_.get('2024')
-            holidays_.get('2023')
-            holidays_ = [pd.to_datetime(x).strftime('%Y-%m-%d') for x in holidays_]
-            self.data['datetime'] = self.data.index
-            self.data['holiday'] = self.data['datetime'].apply(
-                lambda x: 1 if pd.to_datetime(x).strftime('%Y-%m-%d') in holidays_ else 0)
-            self.data.drop(columns=['datetime'], inplace=True)
         elif self.country == 'Spain':
             holidays_ = holidays.Spain(subdiv=13)
-            holidays_.get('2025')
-            holidays_.get('2024')
-            holidays_.get('2023')
-            holidays_ = [pd.to_datetime(x).strftime('%Y-%m-%d') for x in holidays_]
-            self.data['datetime'] = self.data.index
-            self.data['holiday'] = self.data['datetime'].apply(
-                lambda x: 1 if pd.to_datetime(x).strftime('%Y-%m-%d') in holidays_ else 0)
-            self.data.drop(columns=['datetime'], inplace=True)
-        else:
-            pass
+        holidays_.get('2025')
+        holidays_.get('2024')
+        holidays_.get('2023')
+        holidays_ = [pd.to_datetime(x).strftime('%Y-%m-%d') for x in holidays_]
+        self.data['datetime'] = self.data.index
+        self.data['holiday'] = self.data['datetime'].apply(
+            lambda x: 1 if pd.to_datetime(x).strftime('%Y-%m-%d') in holidays_ else 0)
+        self.data.drop(columns=['datetime'], inplace=True)
 
     def weather_data(self):
         logger.debug(f"Fetching weather data...")

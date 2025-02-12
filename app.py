@@ -2,13 +2,16 @@ import os
 import json
 import time
 import uuid
+from uuid import UUID
+from typing import List
 from loguru import logger
 from datetime import datetime
 from dotenv import load_dotenv
-from pydantic import BaseModel
 from fastapi import BackgroundTasks
+from pydantic import BaseModel, Field
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import sessionmaker
+from fastapi.responses import JSONResponse
 from fastapi import FastAPI, HTTPException
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import create_engine, Column, String
@@ -16,6 +19,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from main import run_consumers
 
+# CLI command: uvicorn app:app --reload --log-level debug
 load_dotenv(".env")
 app = FastAPI()
 
@@ -40,15 +44,15 @@ class Task(Base):
 Base.metadata.create_all(bind=engine)
 
 
-# Input schema matching your expected JSON format
+# Input schema
 class TaskRequest(BaseModel):
-    partner: str
-    consumers: list[str]
-    city: str
-    aggregated: int
+    partner: str = Field(..., min_length=1)  # Must be a non-empty string
+    consumers: List[str] = Field(..., min_items=1)  # Must be a list with at least 1 item
+    city: str = Field(..., min_length=1)  # Must be a non-empty string
+    aggregated: int = Field(..., ge=0, le=1)  # Must be 0 or 1
 
 
-# API Endpoint to execute task in background
+# Task to execute asynchronously
 def execute_task(task_id: str, task_request: TaskRequest):
     db = SessionLocal()
     try:
@@ -89,29 +93,44 @@ def execute_task(task_id: str, task_request: TaskRequest):
         db.close()
 
 
-# API Endpoint to create and execute a task
+# API Endpoint to execute a task
 @app.post("/execute")
 def execute(task_request: TaskRequest, background_tasks: BackgroundTasks):
-    task_id = str(uuid.uuid4())
-
-    db = SessionLocal()
     try:
-        # 1️⃣ Store "pending" task in DB
+        task_id = str(uuid.uuid4())
+
+        db = SessionLocal()
+
+        # Ensure valid JSON storage
+        try:
+            parameters_json = task_request.dict()
+        except Exception as e:
+            logger.error(f"Invalid input format: {e}")
+            raise HTTPException(status_code=400, detail="Invalid input format")
+
+        # Insert pending task
         new_task = Task(
             id=task_id,
             status="pending",
             result=None,
-            parameters=json.dumps(task_request.dict()),
+            parameters=parameters_json,
             launch_time=datetime.utcnow(),
             last_updated=datetime.utcnow()
         )
         db.add(new_task)
         db.commit()
 
-        # 2️⃣ Run the tool asynchronously
+        # Run FATEC asynchronously
         background_tasks.add_task(execute_task, task_id, task_request)
 
         return {"task_id": task_id, "status": "pending"}
+
+    except HTTPException as e:
+        raise e  # Forward known errors
+
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return JSONResponse(status_code=500, content={"error": "Internal Server Error"})
 
     finally:
         db.close()
@@ -121,22 +140,38 @@ def execute(task_request: TaskRequest, background_tasks: BackgroundTasks):
 @app.get("/result/{task_id}")
 def get_result(task_id: str):
     db = SessionLocal()
-    task = db.query(Task).filter(Task.id == task_id).first()
-    db.close()
 
+    # Validate task_id format before querying the DB
+    try:
+        task_uuid = UUID(task_id, version=4)
+    except ValueError:
+        db.close()
+        raise HTTPException(status_code=400, detail="Invalid task_id format")
+
+    # Query DB
+    task = db.query(Task).filter(Task.id == str(task_uuid)).first()
     if not task:
+        db.close()
         raise HTTPException(status_code=404, detail="Task ID not found")
 
-    if task.status == "pending":
-        return {"task_id": task.id,
-                "launch_time": task.launch_time,
-                "status": "pending"}
-    else:
-        return {
-            "task_id": task.id,
-            "launch_time": task.launch_time,
-            "status": task.status,
-            "inputs": json.loads(task.parameters),
-            "outputs": task.result,
-            "last_updated": task.last_updated,
-        }
+    try:
+        # Ensure parameters and results are valid JSON
+        inputs = task.parameters if isinstance(task.parameters, dict) else json.loads(task.parameters)
+        outputs = task.result if isinstance(task.result, dict) else json.loads(task.result) if task.result else None
+    except json.JSONDecodeError as e:
+        db.close()
+        logger.error(f"Error parsing JSON from DB for task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error processing task data")
+
+    response_data = {
+        "task_id": task.id,
+        "launch_time": task.launch_time.isoformat(),
+        "status": task.status,
+        "inputs": inputs,
+        "outputs": outputs,
+        "last_updated": task.last_updated.isoformat(),
+    }
+
+    db.close()
+    logger.debug(f"Returning response: {response_data}")
+    return response_data
