@@ -59,7 +59,7 @@ class TaskRequest(BaseModel):
 
 
 class TaskResponse(BaseModel):
-    task_id: str
+    task_id: UUID
     launch_time: str
     status: str
     inputs: Dict[str, Any]
