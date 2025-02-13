@@ -1,6 +1,6 @@
 # FATEC - Flexibility Assessment tool for Energy Communities
 
-This project processes data and acquires weather data from an external provider. It includes a FastAPI application to execute tasks asynchronously and store results in a PostgreSQL database.
+FATEC is a tool designed to assess the flexibility of participants of energy communities. It processes data and acquires weather information from external providers, and uses a causality model to compute the price elasticity of demand of consumers. The tool includes a FastAPI application to execute tasks asynchronously and store results in a PostgreSQL database.
 
 ## Features
 
