@@ -25,7 +25,7 @@ app = FastAPI(title="Task Execution API",
               description="API to execute and retrieve results from the FATEC tool.",
               version="1.0.0",
               contact={
-                  "name": "Carlos A. M. Silva",
+                  "name": "Carlos Silva",
                   "email": "carlos.silva@inesctec.pt",
               })
 
