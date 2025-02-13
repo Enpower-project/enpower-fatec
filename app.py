@@ -47,6 +47,7 @@ class Task(Base):
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+# Create table if it does not exist
 Base.metadata.create_all(bind=engine)
 
 
