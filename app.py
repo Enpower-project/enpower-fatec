@@ -3,7 +3,6 @@ import json
 import time
 import uuid
 from uuid import UUID
-from typing import List
 from loguru import logger
 from datetime import datetime
 from dotenv import load_dotenv
@@ -13,6 +12,7 @@ from sqlalchemy import DateTime, func
 from sqlalchemy.orm import sessionmaker
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI, HTTPException
+from typing import List, Optional, Dict, Any
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import create_engine, Column, String
 from sqlalchemy.ext.declarative import declarative_base
@@ -21,7 +21,13 @@ from main import run_consumers
 
 # CLI command: uvicorn app:app --reload --log-level debug
 load_dotenv(".env")
-app = FastAPI()
+app = FastAPI(title="Task Execution API",
+              description="API to execute and retrieve results from the FATEC tool.",
+              version="1.0.0",
+              contact={
+                  "name": "Carlos A. M. Silva",
+                  "email": "carlos.silva@inesctec.pt",
+              })
 
 # PostgreSQL connection
 DATABASE_URL = f"postgresql://{os.environ['POSTGRES_USER']}:{os.environ['POSTGRES_PASSWORD']}"\
@@ -46,10 +52,19 @@ Base.metadata.create_all(bind=engine)
 
 # Input schema
 class TaskRequest(BaseModel):
-    partner: str = Field(..., min_length=1)  # Must be a non-empty string
-    consumers: List[str] = Field(..., min_items=1)  # Must be a list with at least 1 item
-    city: str = Field(..., min_length=1)  # Must be a non-empty string
-    aggregated: int = Field(..., ge=0, le=1)  # Must be 0 or 1
+    partner: str = Field(..., min_length=1, example="coopernico", description="The name of the partner.")
+    consumers: List[str] = Field(..., min_items=1, example=["test", "test1", "test2"], description="List of consumers.")
+    city: str = Field(..., min_length=1, example="Porto", description="The city where the consumers are located.")
+    aggregated: int = Field(..., ge=0, le=1, example=1, description="Whether to aggregate consumers (0 = No, 1 = Yes).")
+
+
+class TaskResponse(BaseModel):
+    task_id: str
+    launch_time: str
+    status: str
+    inputs: Dict[str, Any]
+    outputs: Optional[Dict[str, Any]]
+    last_updated: str
 
 
 # Task to execute asynchronously
@@ -137,7 +152,7 @@ def execute(task_request: TaskRequest, background_tasks: BackgroundTasks):
 
 
 # API Endpoint to check task result
-@app.get("/result/{task_id}")
+@app.get("/result/{task_id}", response_model=TaskResponse)
 def get_result(task_id: str):
     db = SessionLocal()
 
