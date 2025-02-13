@@ -21,8 +21,8 @@ from main import run_consumers
 
 # CLI command: uvicorn app:app --reload --log-level debug
 load_dotenv(".env")
-app = FastAPI(title="FATEC API",
-              description="API to execute and retrieve results from the FATEC tool.",
+app = FastAPI(title="FATEC tool API",
+              description="API to execute causal analysis and retrieve results from the FATEC tool.",
               version="1.0.0",
               contact={
                   "name": "Carlos Silva",
