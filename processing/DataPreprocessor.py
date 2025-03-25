@@ -1,7 +1,7 @@
-import settings
 from processing.DataDiagnosis import Diagnosis
 from processing.PartnersProcessor import PartnersProcessor
 
+import settings
 import holidays
 import requests
 import warnings
