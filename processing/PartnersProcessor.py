@@ -21,7 +21,6 @@ class PartnersProcessor:
             data = PartnersProcessor.cuerva(self.partner, self.consumers)
         return data
 
-
     @staticmethod
     def cuerva(partner, consumer):
         file = f'data/cuerva/Consumption User {consumer}'
@@ -44,7 +43,8 @@ class PartnersProcessor:
         # Include prices
         try:
             # Read data from XLSX file
-            data_prices = pd.read_excel(f'data/{partner}/regulated market energy price 2023.xlt.xls', skiprows=1, index_col='datetime')
+            data_prices = pd.read_excel(f'data/{partner}/regulated market energy price 2023.xlt.xls', skiprows=1,
+                                        index_col='datetime')
         except FileNotFoundError:
             raise FileNotFoundError(f"Path not found for consumer {consumer} and partner {partner}")
         data_prices.index = pd.to_datetime(data_prices.index, format='ISO8601', utc=True)
