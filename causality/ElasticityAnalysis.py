@@ -164,7 +164,6 @@ class ElasticityModel:
         plt.savefig(f'{self.dir_name}/consumption_change.png')
         plt.close(fig)
 
-
     @staticmethod
     def ranking(consumers, elasticities, plot=1, dir_name=''):
         logger.debug(f"Ranking consumers by self-elasticities...")
