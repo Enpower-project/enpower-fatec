@@ -46,6 +46,9 @@ def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
 if __name__ == "__main__":
     # Input data
     inputs = {'partner': 'coopernico', 'consumers': ['test', 'test1', 'test2'], 'city': 'Porto', 'aggregated': 1}
+    # inputs = {'partner': 'testing',
+    #           'consumers': ['D0026', 'D0027', 'D0044', 'D0070', 'D0073', 'D0075', 'D0092', 'D0097', 'D0112', 'D0130'],
+    #           'city': 'Porto', 'aggregated': 0}
 
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

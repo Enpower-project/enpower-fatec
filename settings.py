@@ -1,10 +1,9 @@
-# Description: This file contains the settings for the application.
-
 # Available partners
-partners = ['coopernico', 'ceve', 'cuerva']
+partners = ['coopernico', 'ceve', 'cuerva', 'testing']
 
 # Coordinates for the cities
 coordinates = {
+    # Portugal
     'Aveiro': {'latitude': 40.723562, 'longitude': -8.464919, 'country': 'Portugal'},
     'Azores': {'latitude': 38.348022, 'longitude': -27.283764, 'country': 'Portugal'},
     'Beja': {'latitude': 37.829706, 'longitude': -7.943892, 'country': 'Portugal'},
@@ -24,5 +23,23 @@ coordinates = {
     'Setúbal': {'latitude': 38.309760, 'longitude': -8.644853, 'country': 'Portugal'},
     'Viana do Castelo': {'latitude': 41.691807, 'longitude': -8.834451, 'country': 'Portugal'},
     'Vila Real': {'latitude': 41.554964, 'longitude': -7.631682, 'country': 'Portugal'},
-    'Viseu': {'latitude': 40.798872, 'longitude': -7.870901, 'country': 'Portugal'}
+    'Viseu': {'latitude': 40.798872, 'longitude': -7.870901, 'country': 'Portugal'},
+    # Spain
+    'Madrid': {'latitude': 40.416775, 'longitude': -3.703790, 'country': 'Spain'},
+    'Barcelona': {'latitude': 41.385064, 'longitude': 2.173404, 'country': 'Spain'},
+    'Valencia': {'latitude': 39.469907, 'longitude': -0.376288, 'country': 'Spain'},
+    'Seville': {'latitude': 37.389092, 'longitude': -5.984459, 'country': 'Spain'},
+    'Zaragoza': {'latitude': 41.648823, 'longitude': -0.889085, 'country': 'Spain'},
+    'Málaga': {'latitude': 36.721274, 'longitude': -4.421399, 'country': 'Spain'},
+    'Murcia': {'latitude': 37.992240, 'longitude': -1.130654, 'country': 'Spain'},
+    'Palma': {'latitude': 39.569600, 'longitude': 2.650160, 'country': 'Spain'},
+    'Las Palmas': {'latitude': 28.123546, 'longitude': -15.436257, 'country': 'Spain'},
+    'Bilbao': {'latitude': 43.263012, 'longitude': -2.934985, 'country': 'Spain'},
+    'Alicante': {'latitude': 38.345996, 'longitude': -0.490686, 'country': 'Spain'},
+    'Córdoba': {'latitude': 37.888175, 'longitude': -4.779383, 'country': 'Spain'},
+    'Barcelona': {'latitude': 41.385064, 'longitude': 2.173404, 'country': 'Spain'},
+    'Valladolid': {'latitude': 41.652251, 'longitude': -4.724532, 'country': 'Spain'},
+    'Vigo': {'latitude': 42.240599, 'longitude': -8.720727, 'country': 'Spain'},
+    'Gijón': {'latitude': 43.532202, 'longitude': -5.661120, 'country': 'Spain'},
+    'Valencia': {'latitude': 39.469907, 'longitude': -0.376288, 'country': 'Spain'}
 }

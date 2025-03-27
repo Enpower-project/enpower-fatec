@@ -19,6 +19,21 @@ class PartnersProcessor:
             data = PartnersProcessor.ceve(self.partner, self.consumers)
         elif self.partner == 'cuerva':
             data = PartnersProcessor.cuerva(self.partner, self.consumers)
+        elif self.partner == 'testing':
+            data = PartnersProcessor.testing(self.partner, self.consumers)
+        return data
+
+    @staticmethod
+    def testing(partner, consumer):
+        try:
+            data = pd.read_pickle(f'data/testing/testing_data.pkl')
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Path not found for consumer {consumer} and partner {partner}")
+
+        data = pd.DataFrame(data={'price (EUR/kWh)': data['Price'].astype(np.float64),
+                                  'consumption (kWh)': data[consumer].astype(np.float64)
+                                  })
+        data = data.resample('h').mean()
         return data
 
     @staticmethod
