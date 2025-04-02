@@ -50,8 +50,6 @@ class ElasticityModel:
         self.evaluate_model()
         if plot:
             self.plot_elasticities()
-            # self.consumption_change()
-            plt.show()
         logger.success(f"Model trained and evaluated successfully.")
 
     def set_model_y(self):
@@ -223,9 +221,9 @@ class ElasticityModel:
         logger.debug(f'\n{df_sorted}')
 
         if plot:
-            fig, ax = plt.subplots(1, 1)
+            fig, ax = plt.subplots(1, 1, figsize=(12, 5))
             sns.heatmap(df_sorted.T, annot=True, fmt=".2f", center=0, cmap='Greens_r', cbar=True, ax=ax,
-                        annot_kws={"size": 6})
+                        annot_kws={"size": 5})
             ax.set(xlabel='Consumer ranking (desc. order)', ylabel='Hour')
             for idx in np.arange(df_sorted.T.size).reshape(df_sorted.T.shape)[-1, :]:
                 ax.texts[idx].set_fontweight('bold')

@@ -15,7 +15,7 @@ warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 class ElasticityModel:
     def __init__(self, data, model_y_type='RandomForest', model_t_type='RandomForest',
-                 cv=5, random_state=42, mc_iters=3, dir_name=''):
+                 cv=5, random_state=42, mc_iters=5, dir_name=''):
         self.data = data
         self.dir_name = dir_name
         self.Y = self.data.Y
@@ -48,7 +48,6 @@ class ElasticityModel:
         self.evaluate_model()
         if plot:
             self.plot_elasticities()
-            # self.consumption_change()
             plt.show()
         logger.success(f"Model trained and evaluated successfully.")
 
@@ -58,7 +57,7 @@ class ElasticityModel:
         elif self.model_y_type == 'LinearRegression':
             self.model_y = LinearRegression()
         elif self.model_y_type == 'XGBoost':
-            self.model_y = XGBRegressor()
+            self.model_y = XGBRegressor(max_depth=6, n_estimators=300)
         else:
             raise ValueError(f"Unsupported model_y_type: {self.model_y_type}")
 
