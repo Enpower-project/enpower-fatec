@@ -38,6 +38,10 @@ class DataPreprocessor:
         self.target_t_col = 'price (EUR/kWh)'
         self.target_y = 'log_consumption'
         self.target_t = 'log_price'
+        self.common_causes = ['temperature', 'weekday',
+                              'consumption_lag_1', 'consumption_lag_7', 'consumption_lag_1h']
+        self.modifiers = ['hour']
+        self.instruments = []
         self.hourly_confounders = []
         self.daily_confounders = ['day', 'weekday', 'temperature', 'precipitation',
                                   'consumption_lag_1', 'consumption_lag_7']
@@ -46,6 +50,10 @@ class DataPreprocessor:
         self.T = None
         self.W = None
         self.X = None
+
+        self.data_original = None
+        self.data_original_ = None
+        self.data_scaled = None
 
         if self.city not in settings.coordinates:
             geolocator = Nominatim(user_agent="enpower-fatec")
@@ -57,9 +65,8 @@ class DataPreprocessor:
             self.longitude = settings.coordinates[self.city]['longitude']
             self.country = settings.coordinates[self.city]['country']
 
-        available_countries = ['Portugal', 'Spain']
-        if self.country not in available_countries:
-            raise ValueError(f"City '{self.city}' not supported. Available countries: {available_countries}")
+        if self.country not in settings.available_countries:
+            raise ValueError(f"City '{self.city}' not supported. Available countries: {settings.available_countries}")
 
     def __repr__(self):
         return f"DataPreprocessor(partner={self.partner}, city={self.city}, days_lag={self.days_lag})"
@@ -119,12 +126,13 @@ class DataPreprocessor:
         self.data['weekend'] = self.data['weekday'].apply(lambda x: 1 if x >= 5 else 0)
         self.data['period'] = (self.data.index.hour % 24 + 4) // 4
         if self.country == 'Portugal':
-            holidays_ = holidays.Portugal(subdiv=13)
+            holidays_ = holidays.Portugal()
         elif self.country == 'Spain':
-            holidays_ = holidays.Spain(subdiv=13)
-        holidays_.get('2025')
-        holidays_.get('2024')
-        holidays_.get('2023')
+            holidays_ = holidays.Spain()
+        elif self.country == 'England':
+            holidays_ = holidays.UK(subdiv='ENG')
+        for year in list(range(2013, 2026))[::-1]:
+            holidays_.get(str(year))
         holidays_ = [pd.to_datetime(x).strftime('%Y-%m-%d') for x in holidays_]
         self.data['datetime'] = self.data.index
         self.data['holiday'] = self.data['datetime'].apply(
@@ -159,6 +167,7 @@ class DataPreprocessor:
         if self.days_lag:
             for lag in self.days_lag:
                 self.data[f'consumption_lag_{lag}'] = self.data[self.target_y_col].shift(self.n_periods * lag)
+            self.data[f'consumption_lag_1h'] = self.data[self.target_y_col].shift(1)
             self.data = self.data[self.n_periods * max(self.days_lag):]
             self.n_panels = self.n_panels - max(self.days_lag)
 
@@ -225,6 +234,24 @@ class DataPreprocessor:
         else:
             X = None
         self.X = X
+
+        # Original and scaled df for DoWhy
+        self.data_original = self.data[self.common_causes + self.modifiers + self.instruments + [self.target_y_col, self.target_t_col]].copy()
+        if self.data_original[self.data_original[self.target_t_col] == 0].shape[0] > 0:
+            self.data_original[self.target_t] = self.data_original[self.target_t_col].apply(lambda x: np.log(x + 0.001))
+        else:
+            self.data_original[self.target_t] = self.data_original[self.target_t_col].apply(lambda x: np.log(x))
+        if self.data_original[self.data_original[self.target_y_col] == 0].shape[0] > 0:
+            self.data_original[self.target_y] = self.data_original[self.target_y_col].apply(lambda x: (np.log(x + 0.001)))
+        else:
+            self.data_original[self.target_y] = self.data_original[self.target_y_col].apply(lambda x: (np.log(x)))
+        scaling_drop = [self.target_y_col, self.target_t_col]
+        self.data_original_ = self.data_original.drop(columns=scaling_drop)
+        data_columns = self.data_original_.columns
+        self.data_scaled = StandardScaler().fit_transform(self.data_original_)
+        self.data_scaled = pd.DataFrame(self.data_scaled, columns=data_columns, index=self.data_original.index)
+        self.data_scaled[self.target_y_col] = self.data_original [self.target_y_col]
+        self.data_scaled[self.target_t_col] = self.data_original[self.target_t_col]
 
         # Feature diagnosis
         if diagnose:

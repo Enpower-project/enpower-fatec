@@ -1,6 +1,9 @@
 # Available partners
 partners = ['coopernico', 'ceve', 'cuerva', 'testing']
 
+# Available countries
+available_countries = ['Portugal', 'Spain', 'England']
+
 # Coordinates for the cities
 coordinates = {
     # Portugal
@@ -41,5 +44,7 @@ coordinates = {
     'Valladolid': {'latitude': 41.652251, 'longitude': -4.724532, 'country': 'Spain'},
     'Vigo': {'latitude': 42.240599, 'longitude': -8.720727, 'country': 'Spain'},
     'Gijón': {'latitude': 43.532202, 'longitude': -5.661120, 'country': 'Spain'},
-    'Valencia': {'latitude': 39.469907, 'longitude': -0.376288, 'country': 'Spain'}
+    'Valencia': {'latitude': 39.469907, 'longitude': -0.376288, 'country': 'Spain'},
+    # England
+    'London': {'latitude': 51.507351, 'longitude': -0.127758, 'country': 'England'},
 }

@@ -1,5 +1,6 @@
 from processing.DataPreprocessor import DataPreprocessor
-from causality.ElasticityAnalysis import ElasticityModel
+# from causality.ElasticityAnalysis import ElasticityModel
+from causality.ElasticityAnalysisDoWhy import ElasticityModel
 
 import os
 import json
@@ -23,7 +24,10 @@ def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
             elasticity_model = ElasticityModel(preprocessor, model_y_type='XGBoost', model_t_type='XGBoost',
                                                cv=3, mc_iters=2, dir_name=dir_name)
             elasticity_model.process(plot=plot)
-            consumer_elasticities.append(elasticity_model.elasticity[0])
+            if elasticity_model.elasticity.shape == (24, 1):
+                consumer_elasticities.append(elasticity_model.elasticity)
+            else:
+                consumer_elasticities.append(elasticity_model.elasticity[0])
             out.get('elasticity').update({consumer: consumer_elasticities[i].tolist()})
         if len(consumers) > 1:
             ranks = ElasticityModel.ranking(consumers, consumer_elasticities, plot=plot, dir_name=dir_name)
@@ -45,10 +49,10 @@ def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
 
 if __name__ == "__main__":
     # Input data
-    inputs = {'partner': 'coopernico', 'consumers': ['test', 'test1', 'test2'], 'city': 'Porto', 'aggregated': 1}
-    # inputs = {'partner': 'testing',
-    #           'consumers': ['D0026', 'D0027', 'D0044', 'D0070', 'D0073', 'D0075', 'D0092', 'D0097', 'D0112', 'D0130'],
-    #           'city': 'Porto', 'aggregated': 0}
+    # inputs = {'partner': 'coopernico', 'consumers': ['test', 'test1', 'test2'], 'city': 'Porto', 'aggregated': 1}
+    inputs = {'partner': 'testing',
+              'consumers': ['D0026', 'D0027', 'D0044', 'D0070', 'D0073', 'D0075', 'D0092', 'D0097', 'D0112', 'D0130'],
+              'city': 'London', 'aggregated': 0}
 
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

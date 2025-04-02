@@ -34,6 +34,7 @@ class PartnersProcessor:
                                   'consumption (kWh)': data[consumer].astype(np.float64)
                                   })
         data = data.resample('h').mean()
+        data = data[data.index >= '2013-01-01']
         return data
 
     @staticmethod
