@@ -62,7 +62,7 @@ if __name__ == "__main__":
                  'D0744', 'D0754', 'D0760', 'D0767', 'D0780', 'D0801', 'D0804', 'D0806', 'D0813', 'D0814',
                  'D0822', 'D0825', 'D0881', 'D0887', 'D0910', 'D0938', 'D0946', 'D0955', 'D1010', 'D1017',
                  'D1018']
-    n_test = 20
+    n_test = 10
     consumers = np.random.choice(consumers, n_test, replace=False).tolist()
     inputs = {'partner': 'testing',
               'consumers': consumers,
