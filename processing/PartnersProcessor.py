@@ -21,6 +21,8 @@ class PartnersProcessor:
             data = PartnersProcessor.cuerva(self.partner, self.consumers)
         elif self.partner == 'testing':
             data = PartnersProcessor.testing(self.partner, self.consumers)
+        elif self.partner == 'epri':
+            data = PartnersProcessor.epri(self.partner, self.consumers)
         return data
 
     @staticmethod
@@ -178,3 +180,93 @@ class PartnersProcessor:
 
         return df_all
 
+    @staticmethod
+    def epri(partner, consumer):
+        # -- Price data
+        path = f'data/epri/price'
+        try:
+            filenames = listdir(path)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Path {path} not found for consumer {consumer} and partner {partner}")
+        filenames = [filename for filename in filenames if filename.endswith('.csv')]
+        df_all = pd.DataFrame()
+        for file in filenames:
+            # Preprocess CSV file
+            data_ = pd.read_csv(f'{path}/{file}')
+            data_.columns = ['ESB_id', 'timestamp', 'elec_price', 'unit']
+
+            # Concatenate files
+            df_all = pd.concat([df_all, data_])
+
+        # timestamp as datetime and sort by datetime and esb_id
+        df_all['timestamp'] = pd.to_datetime(df_all['timestamp'])
+        df_all = df_all.sort_values(by=['timestamp', 'ESB_id'])
+        price = df_all[df_all['ESB_id'] == consumer]
+        if price.empty:
+            raise ValueError(f"Price data for consumer {consumer} not found in partner {partner}.")
+        price.drop_duplicates(['timestamp', 'ESB_id'], keep='last', inplace=True)
+        price = price[['timestamp', 'elec_price']]
+        price.set_index('timestamp', inplace=True)
+
+        # -- Reindex between minimum and maximum timestamps
+        price = price.reindex(pd.date_range(start=price.index.min(), end=price.index.max(), freq='h'))
+
+        # -- Mapping consumers
+        path = f'data/epri/Greencom_AS230Meter_Mapping.csv'
+        mapping = pd.read_csv(path)
+        a230_id = mapping[mapping['GreencomSiteID'] == consumer]['AS230_ID'].unique()
+        if not a230_id:
+            raise ValueError(f"Consumer {consumer} not mapped in partner {partner}.")
+        elif a230_id.tolist()[0] == np.nan:
+            raise ValueError(f"Consumer {consumer} not mapped in partner {partner} (nan value).")
+        else:
+            a230_id = a230_id.tolist()[0]
+
+        # -- Consumption data
+        path = f'data/epri/consumption'
+        try:
+            filenames = listdir(path)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Path {path} not found for consumer {consumer} and partner {partner}")
+        filenames = [filename for filename in filenames if filename.endswith('.csv')]
+        df_all = pd.DataFrame()
+        for file in filenames:
+            # Preprocess CSV file
+            data_ = pd.read_csv(f'{path}/{file}', header=None)
+            data_.columns = ['meter_id', 'measurement', 'timestamp', 'dst', 'kWh', '0']
+            data_ = data_[(data_['meter_id'] == a230_id) & (data_['measurement'] == 'Active-power-import')]
+            df_all = pd.concat([df_all, data_])
+
+        df_all['timestamp'] = pd.to_datetime(df_all['timestamp'])
+        df_all = df_all.sort_values(by=['timestamp'])
+        df_all.drop_duplicates(['timestamp'], keep='last', inplace=True)
+        df_all.set_index('timestamp', inplace=True)
+        df_all.index = df_all.index.tz_localize('UTC')
+        df_all = df_all[['kWh']]
+        if df_all.empty:
+            raise ValueError(f"Consumption data for consumer {consumer} not found in partner {partner}.")
+        df_all = df_all.reindex(pd.date_range(start=df_all.index.min(), end=df_all.index.max(), freq='15T'))
+        consumption = df_all.resample('h').sum()
+        consumption = consumption['kWh'].copy()
+
+        df_combined = pd.merge(price, consumption, how='outer', left_index=True, right_index=True)
+        df_combined.dropna(inplace=True)
+        data = pd.DataFrame(data={'price (EUR/kWh)': df_combined['elec_price'].astype(np.float64),
+                                  'consumption (kWh)': df_combined['kWh'].astype(np.float64)
+                                  })
+
+        # import matplotlib.pyplot as plt
+        # fig, ax = plt.subplots()
+        # ax.plot(data.index, data['price (EUR/kWh)'], label='Price (EUR/kWh)')
+        # ax.set_xlabel('Datetime')
+        # ax.set_ylabel('Price (EUR/kWh)')
+        # ax2 = ax.twinx()
+        # ax2.plot(data.index, data['consumption (kWh)'], label='Consumption (kWh)', color='orange')
+        # ax2.set_ylabel('Consumption (kWh)')
+        # ax.legend(loc='upper left')
+        # ax2.legend(loc='upper right')
+        # plt.tight_layout()
+        # plt.savefig(f'data/epri/consumption/{partner}_{consumer}_timeseries.png')
+        # plt.show()
+
+        return data

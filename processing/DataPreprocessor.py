@@ -131,6 +131,8 @@ class DataPreprocessor:
             holidays_ = holidays.Spain()
         elif self.country == 'England':
             holidays_ = holidays.UK(subdiv='ENG')
+        elif self.country == 'Ireland':
+            holidays_ = holidays.Ireland()
         for year in list(range(2013, 2026))[::-1]:
             holidays_.get(str(year))
         holidays_ = [pd.to_datetime(x).strftime('%Y-%m-%d') for x in holidays_]
@@ -155,12 +157,17 @@ class DataPreprocessor:
                                             'wind_speed': self.weather['hourly']['wind_speed_10m'],
                                             'precipitation': self.weather['hourly']['precipitation']})
             weather_df.index = pd.to_datetime(weather_df.index, format='%Y-%m-%dT%H:%M')
-            weather_df = weather_df[(weather_df.index >= self.start) & (weather_df.index <= self.end)]
+            try:
+                weather_df = weather_df[(weather_df.index >= self.start) & (weather_df.index <= self.end)]
+            except TypeError:
+                weather_df = weather_df[(weather_df.index >= self.start.to_datetime64()) &
+                                        (weather_df.index <= self.end.to_datetime64())]
+                weather_df.index = weather_df.index.tz_localize('UTC')
             self.data = pd.concat([self.data, weather_df], axis=1)
         else:
             raise ValueError(f"Failed to fetch weather data. Status code: {response.status_code}")
 
-    def process_data(self, min_days=180, diagnose=True):
+    def process_data(self, min_days=100, diagnose=True):
         logger.debug(f"Processing input data...")
 
         # Shift consumption data by the specified lag
@@ -196,7 +203,8 @@ class DataPreprocessor:
         if self.data.empty:
             raise ValueError("No data available after filtering.")
         elif self.n_panels < min_days:
-            raise ValueError("Insufficient data available after filtering.")
+            raise ValueError(f"Insufficient data available after filtering. "
+                             f"Days available: {self.n_panels}. Minimum days: {min_days}.")
 
         # Apply log transformation to target_y_col
         if self.data[self.data[self.target_y_col] == 0].shape[0] > 0:

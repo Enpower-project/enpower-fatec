@@ -1,8 +1,8 @@
 # Available partners
-partners = ['coopernico', 'ceve', 'cuerva', 'testing']
+partners = ['coopernico', 'ceve', 'cuerva', 'epri', 'testing']
 
 # Available countries
-available_countries = ['Portugal', 'Spain', 'England']
+available_countries = ['Portugal', 'Spain', 'England', 'Ireland']
 
 # Coordinates for the cities
 coordinates = {
@@ -47,4 +47,6 @@ coordinates = {
     'Valencia': {'latitude': 39.469907, 'longitude': -0.376288, 'country': 'Spain'},
     # England
     'London': {'latitude': 51.507351, 'longitude': -0.127758, 'country': 'England'},
+    # Ireland
+    'Dingle': {'latitude': 52.1395, 'longitude': -10.2705, 'country': 'Ireland'}
 }

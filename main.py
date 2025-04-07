@@ -68,6 +68,11 @@ if __name__ == "__main__":
               'consumers': consumers,
               'city': 'London', 'aggregated': 0}
 
+    # inputs = {'partner': 'epri',
+    #           'consumers': ['ESB_005', 'ESB_010', 'ESB_015', 'ESB_016', 'ESB_017', 'ESB_020', 'ESB_022',
+    #                         'ESB_024', 'ESB_025', 'ESB_032', 'ESB_033', 'ESB_037', 'ESB_003'],
+    #           'city': 'Dingle', 'aggregated': 0}
+
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     directory_name = f"results/exec_{timestamp}"
