@@ -137,8 +137,8 @@ class ElasticityModel:
             fig, ax = plt.subplots(1, 1, figsize=(10, 5))
             vmin = np.min(self.elasticity_transposed)
             vmax = np.max(self.elasticity_transposed)
-            sns.heatmap(self.elasticity_transposed[0], annot=True, fmt=".2f", center=0, cmap='vlag', cbar=True, ax=ax,
-                        annot_kws={"size": 6}, vmin=vmin, vmax=vmax)
+            sns.heatmap(self.elasticity_transposed[0], annot=True, fmt=".2f", center=0, cmap='coolwarm', cbar=True,
+                        ax=ax, annot_kws={"size": 6}, vmin=vmin, vmax=vmax)
             ax.set(xlabel='Hour', ylabel='Hour', title='Elasticity')
             ax.set_xticklabels(self.list_hours)
             ax.set_yticklabels(self.list_hours)
@@ -221,16 +221,18 @@ class ElasticityModel:
         logger.debug(f'\n{df_sorted}')
 
         if plot:
-            fig, ax = plt.subplots(1, 1, figsize=(12, 5))
-            sns.heatmap(df_sorted.T, annot=True, fmt=".2f", center=0, cmap='Greens_r', cbar=True, ax=ax,
+            fig, ax = plt.subplots(1, 1, figsize=(12, 12))
+            sns.heatmap(df_sorted, annot=True, fmt=".2f", center=0, cmap='coolwarm', cbar=True, ax=ax,
                         annot_kws={"size": 5})
-            ax.set(xlabel='Consumer ranking (desc. order)', ylabel='Hour')
-            for idx in np.arange(df_sorted.T.size).reshape(df_sorted.T.shape)[-1, :]:
+            ax.set_ylabel('Consumer ranking (desc. order)', fontsize=8)
+            ax.set_xlabel('Hour', fontsize=5)
+            ax.set_yticklabels(df_sorted.index, fontsize=3)
+            ax.tick_params(axis='x', labelsize=3)
+            ax.tick_params(axis='y', labelsize=3)
+            for idx in np.arange(df_sorted.size).reshape(df_sorted.shape)[:, -1]:
                 ax.texts[idx].set_fontweight('bold')
             plt.tight_layout()
             plt.savefig(f'{dir_name}/ranking.png')
             plt.close(fig)
 
         return df_sorted['Magnitude']
-
-

@@ -28,15 +28,43 @@ class PartnersProcessor:
     @staticmethod
     def testing(partner, consumer):
         try:
-            data = pd.read_pickle(f'data/testing/testing_data.pkl')
+            data_price = pd.read_pickle(f'data/testing/testing_data.pkl')
+            data_price = data_price['Price']
+
+            data = pd.read_csv(f'data/testing/lcl_dataset.csv')
         except FileNotFoundError:
             raise FileNotFoundError(f"Path not found for consumer {consumer} and partner {partner}")
 
-        data = pd.DataFrame(data={'price (EUR/kWh)': data['Price'].astype(np.float64),
-                                  'consumption (kWh)': data[consumer].astype(np.float64)
-                                  })
+        data = data[data['house'] == consumer][['DateTime', 'energy_consumption']]
+        data.drop_duplicates(['DateTime'], keep='last', inplace=True)
+        data.set_index('DateTime', inplace=True)
+        data.index = pd.to_datetime(data.index, format='%Y-%m-%d %H:%M:%S')
+        data.index = data.index.tz_localize('UTC')
+        data = data.reindex(pd.date_range(start=data.index.min(), end=data.index.max(), freq='30T'))
+
+        data_price.index = pd.to_datetime(data_price.index, format='%Y-%m-%d %H:%M:%S')
+        data_price.index = data_price.index.tz_localize('UTC')
+        data_price = data_price.reindex(pd.date_range(start=data_price.index.min(), end=data_price.index.max(), freq='30T'))
+
+        data = pd.merge(data, data_price, how='outer', left_index=True, right_index=True)
+        data.columns = ['consumption (kWh)', 'price (EUR/kWh)']
         data = data.resample('h').mean()
-        data = data[data.index >= '2013-01-01']
+        data = data[(data.index >= '2013-01-01') & (data.index <= data_price.index.max())]
+
+        # import matplotlib.pyplot as plt
+        # fig, ax = plt.subplots()
+        # ax.plot(data.index, data['price (EUR/kWh)'], label='Price (EUR/kWh)')
+        # ax.set_xlabel('Datetime')
+        # ax.set_ylabel('Price (EUR/kWh)')
+        # ax2 = ax.twinx()
+        # ax2.plot(data.index, data['consumption (kWh)'], label='Consumption (kWh)', color='orange')
+        # ax2.set_ylabel('Consumption (kWh)')
+        # ax.legend(loc='upper left')
+        # ax2.legend(loc='upper right')
+        # plt.tight_layout()
+        # plt.savefig(f'data/testing/consumption/{partner}_{consumer}_timeseries.png')
+        # plt.close(fig)
+
         return data
 
     @staticmethod
@@ -246,7 +274,7 @@ class PartnersProcessor:
         if df_all.empty:
             raise ValueError(f"Consumption data for consumer {consumer} not found in partner {partner}.")
         df_all = df_all.reindex(pd.date_range(start=df_all.index.min(), end=df_all.index.max(), freq='15T'))
-        consumption = df_all.resample('h').sum()
+        consumption = df_all.resample('h').mean()
         consumption = consumption['kWh'].copy()
 
         df_combined = pd.merge(price, consumption, how='outer', left_index=True, right_index=True)
