@@ -14,7 +14,7 @@ def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
     assert type(city) == str, "The city must be a string."
     assert type(consumers) == list, "The consumers must be a list."
 
-    out = {'elasticity': {}, 'ranking': None}
+    out = {'elasticity': {}, 'ranking': None, 'pval': {}}
     consumer_elasticities = []
     if not aggregated:
         logger.debug(f"Processing consumers: {consumers}")
@@ -30,6 +30,7 @@ def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
             else:
                 consumer_elasticities.append(elasticity_model.elasticity[0])
             out.get('elasticity').update({consumer: consumer_elasticities[i].tolist()})
+            out.get('pval').update({consumer: elasticity_model.model.summary().tables[0].data[1][-3]})
         if len(consumers) > 1:
             ranks = ElasticityModel.ranking(consumers, consumer_elasticities, plot=plot, dir_name=dir_name)
             out.update({'ranking': {'order': ranks.index.to_list(), 'magnitude': ranks.values.tolist()}})

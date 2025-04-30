@@ -38,7 +38,7 @@ class DataPreprocessor:
         self.target_t_col = 'price (EUR/kWh)'
         self.target_y = 'log_consumption'
         self.target_t = 'log_price'
-        self.common_causes = ['temperature', 'weekend', 'month', 'precipitation',
+        self.common_causes = ['temperature', 'weekend', 'precipitation',
                               'consumption_lag_1', 'consumption_lag_7', 'consumption_lag_1h']
         self.modifiers = ['hour']
         self.instruments = []
@@ -236,8 +236,8 @@ class DataPreprocessor:
         self.W = W
 
         # Separate by effect shifters
-        if self.effect_shifters:
-            X = self.data[self.effect_shifters].values
+        if self.modifiers:
+            X = self.data[self.modifiers].values
             X = X.reshape((self.n_panels, self.n_periods))
         else:
             X = None
