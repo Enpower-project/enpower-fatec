@@ -236,12 +236,10 @@ class DataPreprocessor:
         self.W = W
 
         # Separate by effect shifters
+        self.X = None
         if self.modifiers:
-            X = self.data[self.modifiers].values
-            X = X.reshape((self.n_panels, self.n_periods))
-        else:
-            X = None
-        self.X = X
+            self.X = self.data[self.modifiers].values
+            self.X = self.X.reshape((self.n_panels, self.n_periods))
 
         # Original and scaled df for DoWhy
         self.data_original = self.data[self.common_causes + self.modifiers + self.instruments + [self.target_y_col, self.target_t_col]].copy()

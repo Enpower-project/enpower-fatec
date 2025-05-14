@@ -159,51 +159,6 @@ class ElasticityModel:
             plt.savefig(f'{self.dir_name}/elasticity_{self.data.consumers}.png')
             plt.close(fig)
 
-    def consumption_change(self, consumption_baseline=None, price_before=None, price_after=None, X=None):
-        X_test = X[0].reshape(1, -1) if X is not None else X
-        date_range = pd.date_range(start=self.data.start, end=self.data.end, freq='D')
-        random_day = random.choice(date_range)
-
-        if consumption_baseline is None:
-            # Get random full day of consumption from data
-            consumption_baseline = consumption_baseline[consumption_baseline.index.date == random_day.date()].values
-
-        if price_before is None:
-            price_before = self.data.data[self.data.target_t_col]
-            price_before = price_before[price_before.index.date == random_day.date()].values
-
-        if price_after is None:
-            price_after = price_before.copy()
-            random_hour = random.choices(list(range(10, 18)))[0]
-            random_price_change = round(random.choices(np.arange(0.75, 0.975, 0.025))[0], 3)
-            price_after[random_hour] = price_after[random_hour] * random_price_change
-
-        T0_log = np.log(price_before).reshape(1, -1)
-        T1_log = np.log(price_after).reshape(1, -1)
-        effect = self.model.effect(X=X_test, T0=T0_log, T1=T1_log)[0]
-        effect = np.exp(effect)
-        consumption_after = np.round(np.array(effect * consumption_baseline).reshape(1, -1), 2)
-
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax2 = ax.twinx()
-        ax.plot(self.list_hours, consumption_baseline, '-r', alpha=0.8, label='Consumption (Before)')
-        ax.plot(self.list_hours, consumption_after[0], '-g', alpha=0.8, label='Consumption (After)')
-        ax2.plot(self.list_hours, price_before, 'k', drawstyle="steps-post", label='Price (Before)')
-        ax2.plot(self.list_hours, price_after, '--k', drawstyle="steps-post", label='Price (After)')
-        ax.set_ylabel('Consumption (kWh)')
-        ax.set_xlabel('Hour')
-        ax2.set_ylim([0, None])
-        ax.set_xlim([0, 23])
-        ax2.set_ylabel('Price (€/kWh)')
-        ax.set_facecolor('#FBF6EF')
-        handles, _ = ax.get_legend_handles_labels()
-        handles2, _ = ax2.get_legend_handles_labels()
-        plt.legend(handles + handles2, ['Consumption (Before)', 'Consumption (After)',
-                                        'Price (Before)', 'Price (After)'], loc='upper left', frameon=False)
-        plt.tight_layout()
-        plt.savefig(f'{self.dir_name}/consumption_change.png')
-        plt.close(fig)
-
     @staticmethod
     def ranking(consumers, elasticities, plot=1, dir_name=''):
         logger.debug(f"Ranking consumers by self-elasticities...")
