@@ -38,18 +38,10 @@ class DataPreprocessor:
         self.target_t_col = 'price (EUR/kWh)'
         self.target_y = 'log_consumption'
         self.target_t = 'log_price'
-        self.common_causes = ['temperature', 'weekend', 'precipitation',
-                              'consumption_lag_1', 'consumption_lag_7', 'consumption_lag_1h']
+        self.common_causes = ['temperature', 'weekday', 'consumption_lag_1h']
         self.modifiers = ['hour']
         self.instruments = []
-        self.hourly_confounders = []
-        self.daily_confounders = ['day', 'weekday', 'temperature', 'precipitation',
-                                  'consumption_lag_1', 'consumption_lag_7']
         self.effect_shifters = []
-        self.Y = None
-        self.T = None
-        self.W = None
-        self.X = None
 
         self.data_original = None
         self.data_original_ = None
@@ -211,35 +203,12 @@ class DataPreprocessor:
             self.data[self.target_y] = self.data[self.target_y_col].apply(lambda x: (np.log(x + 0.001)))
         else:
             self.data[self.target_y] = self.data[self.target_y_col].apply(lambda x: (np.log(x)))
-        Y = self.data[self.target_y].values
-        Y = Y.reshape((self.n_panels, self.n_periods))
-        self.Y = Y
 
         # Apply log transformation to target_t_col
         if self.data[self.data[self.target_t_col] == 0].shape[0] > 0:
             self.data[self.target_t] = self.data[self.target_t_col].apply(lambda x: np.log(x + 0.001))
         else:
             self.data[self.target_t] = self.data[self.target_t_col].apply(lambda x: np.log(x))
-        T = self.data[[self.target_t]].values
-        T = T.reshape((self.n_panels, self.n_periods))
-        self.T = T
-
-        # Process hourly and daily confounders
-        logger.debug(f"Processing covariates...")
-        W = self.data[self.hourly_confounders].values
-        W = W.reshape((self.n_panels, self.n_periods * len(self.hourly_confounders)))
-        W_aux = pd.DataFrame(W)
-        for confounder in self.daily_confounders:
-            W_aux[confounder] = data_daily[confounder].values
-        W = W_aux.values
-        W = StandardScaler().fit_transform(W)
-        self.W = W
-
-        # Separate by effect shifters
-        self.X = None
-        if self.modifiers:
-            self.X = self.data[self.modifiers].values
-            self.X = self.X.reshape((self.n_panels, self.n_periods))
 
         # Original and scaled df for DoWhy
         self.data_original = self.data[self.common_causes + self.modifiers + self.instruments + [self.target_y_col, self.target_t_col]].copy()
@@ -262,5 +231,6 @@ class DataPreprocessor:
         # Feature diagnosis
         if diagnose:
             logger.debug("Performing data diagnosis...")
-            diagnosis = Diagnosis(self.data, self.target_y, self.hourly_confounders, self.daily_confounders)
+            diagnosis = Diagnosis(self.data, self.target_y,
+                                  self.common_causes + self.modifiers + self.instruments)
             diagnosis.execute()

@@ -4,9 +4,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from loguru import logger
+from dowhy import CausalModel
 import matplotlib.pyplot as plt
 from xgboost import XGBRegressor
 from econml.dml import LinearDML
+from sklearn.model_selection import KFold
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from numba.core.errors import NumbaDeprecationWarning
@@ -15,13 +17,9 @@ warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 
 class ElasticityModel:
     def __init__(self, data, model_y_type='RandomForest', model_t_type='RandomForest',
-                 cv=5, random_state=42, mc_iters=5, dir_name=''):
+                 cv=5, random_state=42, mc_iters=3, dir_name=''):
         self.data = data
         self.dir_name = dir_name
-        self.Y = self.data.Y
-        self.T = self.data.T
-        self.W = self.data.W
-        self.X = self.data.X
         self.n_periods = data.n_periods
         self.list_hours = data.list_hours
         self.cv = cv
@@ -48,7 +46,6 @@ class ElasticityModel:
         self.evaluate_model()
         if plot:
             self.plot_elasticities()
-            plt.show()
         logger.success(f"Model trained and evaluated successfully.")
 
     def set_model_y(self):
@@ -57,7 +54,7 @@ class ElasticityModel:
         elif self.model_y_type == 'LinearRegression':
             self.model_y = LinearRegression()
         elif self.model_y_type == 'XGBoost':
-            self.model_y = XGBRegressor(max_depth=6, n_estimators=300)
+            self.model_y = XGBRegressor()
         else:
             raise ValueError(f"Unsupported model_y_type: {self.model_y_type}")
 
@@ -79,15 +76,38 @@ class ElasticityModel:
         self.set_model_y()
         self.set_model_t()
 
-        # Initialize LinearDML model
-        self.model = LinearDML(
-            model_y=self.model_y,
-            model_t=self.model_t,
-            cv=self.cv,
-            random_state=self.random_state,
-            mc_iters=self.mc_iters
+        logger.debug('...Instantiate DoWhy model...')
+        model = CausalModel(
+            data=self.data.data_scaled,
+            treatment=self.data.target_t,
+            outcome=self.data.target_y,
+            common_causes=self.data.common_causes,
+            instruments=self.data.instruments,
+            effect_modifiers=self.data.modifiers,
         )
-        self.model.fit(self.Y, self.T, W=self.W, X=self.X, cache_values=True, inference='auto')
+        logger.debug('...Identifying estimand...')
+        identified_estimand = model.identify_effect(proceed_when_unidentifiable=True)
+        logger.debug(identified_estimand)
+
+        logger.debug('...Fitting model...')
+        method_name = "backdoor.econml.dml.CausalForestDML"
+        method_params = {
+            'init_params': {'model_y': self.model_y,
+                            'model_t': self.model_t,
+                            'cv': KFold(n_splits=self.cv, shuffle=True),
+                            'random_state': self.random_state,
+                            'mc_iters': self.mc_iters,
+                            'n_estimators': 300,
+                            'max_depth': 5
+                            },
+            'fit_params': {'cache_values': True},
+        }
+        estimate = model.estimate_effect(identified_estimand,
+                                         method_name=method_name,
+                                         method_params=method_params,
+                                         confidence_intervals=True,
+                                         )
+        self.model = estimate._estimator_object
 
     def evaluate_model(self):
         try:
@@ -98,23 +118,39 @@ class ElasticityModel:
         except Exception as e:
             logger.debug(f'Scores for nuisance models are unavailable: {e}')
         logger.debug(f"Final model (MSE): {round(self.model.score_, 3)}")
-        self.elasticity = self.model.const_marginal_effect(X=self.X)
+
+        hours_ = self.data.data_scaled['hour'].unique()
+        self.elasticity = self.model.const_marginal_effect(np.array(hours_).reshape(-1, 1))
 
     def plot_elasticities(self):
-        logger.debug(f"Calculating Price Elasticity Matrix...")
-        self.elasticity_transposed = np.transpose(self.elasticity[0]).reshape(1, self.n_periods, self.n_periods)
+        logger.debug(f"Plotting elasticity...")
 
-        fig, ax = plt.subplots(1, 1, figsize=(10, 5))
-        vmin = np.min(self.elasticity_transposed)
-        vmax = np.max(self.elasticity_transposed)
-        sns.heatmap(self.elasticity_transposed[0], annot=True, fmt=".2f", center=0, cmap='vlag', cbar=True, ax=ax,
-                    annot_kws={"size": 6}, vmin=vmin, vmax=vmax)
-        ax.set(xlabel='Hour', ylabel='Hour', title='Elasticity')
-        ax.set_xticklabels(self.list_hours)
-        ax.set_yticklabels(self.list_hours)
-        plt.tight_layout()
-        plt.savefig(f'{self.dir_name}/elasticity_{self.data.consumers}.png')
-        plt.close(fig)
+        try:
+            self.elasticity_transposed = np.transpose(self.elasticity[0]).reshape(1, self.n_periods, self.n_periods)
+            fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+            vmin = np.min(self.elasticity_transposed)
+            vmax = np.max(self.elasticity_transposed)
+            sns.heatmap(self.elasticity_transposed[0], annot=True, fmt=".2f", center=0, cmap='coolwarm', cbar=True,
+                        ax=ax, annot_kws={"size": 6}, vmin=vmin, vmax=vmax)
+            ax.set(xlabel='Hour', ylabel='Hour', title='Elasticity')
+            ax.set_xticklabels(self.list_hours)
+            ax.set_yticklabels(self.list_hours)
+            plt.tight_layout()
+            plt.savefig(f'{self.dir_name}/elasticity_{self.data.consumers}.png')
+            plt.close(fig)
+        except ValueError:
+            hours_ = self.data.data_scaled['hour'].unique()
+            marg_effect = self.model.const_marginal_effect(np.array(hours_).reshape(-1, 1))
+            marg_data = pd.DataFrame({'Self-elasticity': marg_effect.ravel()})
+            fig, ax = plt.subplots(figsize=(10, 5))
+            sns.heatmap(marg_data.T, cmap='copper', annot=True,
+                        fmt=".3f", annot_kws={'rotation': 90},
+                        cbar_kws=dict(location="top", shrink=0.5))
+            cbar = ax.collections[0].colorbar
+            cbar.set_label('Elasticity', labelpad=20)
+            plt.tight_layout()
+            plt.savefig(f'{self.dir_name}/elasticity_{self.data.consumers}.png')
+            plt.close(fig)
 
     @staticmethod
     def ranking(consumers, elasticities, plot=1, dir_name=''):
@@ -122,24 +158,28 @@ class ElasticityModel:
         df_self = pd.DataFrame()
         magnitudes = []
         for i, consumer in enumerate(consumers):
-            diag = np.diag(elasticities[i])
+            if elasticities[i].shape == (24, 1):
+                diag = elasticities[i].reshape(1, -1)[0]
+            else:
+                diag = np.diag(elasticities[i])
             df_self[consumer] = diag
             magnitudes.append(np.sqrt(np.sum(np.square(diag))))
         df_self.loc['Magnitude'] = magnitudes
         df_sorted = df_self.T.sort_values('Magnitude', ascending=False)
-        logger.debug(f'\n{df_self}')
 
         if plot:
-            fig, ax = plt.subplots(1, 1)
-            sns.heatmap(df_sorted.T, annot=True, fmt=".2f", center=0, cmap='Greens_r', cbar=True, ax=ax,
-                        annot_kws={"size": 6})
-            ax.set(xlabel='Consumer ranking (desc. order)', ylabel='Hour')
-            for idx in np.arange(df_sorted.T.size).reshape(df_sorted.T.shape)[-1, :]:
+            fig, ax = plt.subplots(1, 1, figsize=(12, 12))
+            sns.heatmap(df_sorted, annot=True, fmt=".2f", center=0, cmap='coolwarm', cbar=True, ax=ax,
+                        annot_kws={"size": 5})
+            ax.set_ylabel('Consumer ranking (desc. order)', fontsize=8)
+            ax.set_xlabel('Hour', fontsize=5)
+            ax.set_yticklabels(df_sorted.index, fontsize=3)
+            ax.tick_params(axis='x', labelsize=3)
+            ax.tick_params(axis='y', labelsize=3)
+            for idx in np.arange(df_sorted.size).reshape(df_sorted.shape)[:, -1]:
                 ax.texts[idx].set_fontweight('bold')
             plt.tight_layout()
             plt.savefig(f'{dir_name}/ranking.png')
             plt.close(fig)
 
-        return df_sorted['Magnitude']
-
-
+        return df_sorted

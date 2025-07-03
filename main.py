@@ -1,6 +1,5 @@
 from processing.DataPreprocessor import DataPreprocessor
-# from causality.ElasticityAnalysis import ElasticityModel
-from causality.ElasticityAnalysisDoWhy import ElasticityModel
+from causality.ElasticityAnalysis import ElasticityModel
 
 import os
 import json
@@ -33,12 +32,15 @@ def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
             out.get('pval').update({consumer: elasticity_model.model.summary().tables[0].data[1][-3]})
         if len(consumers) > 1:
             ranks = ElasticityModel.ranking(consumers, consumer_elasticities, plot=plot, dir_name=dir_name)
-            out.update({'ranking': {'order': ranks.index.to_list(), 'magnitude': ranks.values.tolist()}})
+            df_results = ranks.copy()
+            df_results['pval'] = df_results.index.map(out.get('pval'))
+            logger.debug(f'\n{df_results}')
+            out.update({'ranking': {'order': ranks['Magnitude'].index.to_list(), 'magnitude': ranks.values.tolist()}})
         json.dump(out, open(f"{dir_name}/out.json", 'w'), indent=4)
     else:
         logger.debug(f"Processing aggregated consumers: {consumers}")
         preprocessor = DataPreprocessor(partner, city, consumers, dir_name=dir_name)
-        preprocessor.process(diagnose=True)
+        preprocessor.process()
         elasticity_model = ElasticityModel(preprocessor, model_y_type='XGBoost', model_t_type='XGBoost',
                                            cv=5, mc_iters=5, dir_name=dir_name)
         elasticity_model.process(plot=plot)

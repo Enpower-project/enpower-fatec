@@ -7,15 +7,13 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 
 class Diagnosis:
-    def __init__(self, data, target_y, hourly_confounders, daily_confounders):
+    def __init__(self, data, target_y, variables):
         self.data = data
         self.target_y = target_y
-        self.hourly_confounders = hourly_confounders
-        self.daily_confounders = daily_confounders
+        self.variables = variables
 
     def __repr__(self):
-        return (f"Diagnosis(data={self.data}, target_y={self.target_y}, hourly_confounders={self.hourly_confounders}, "
-                f"daily_confounders={self.daily_confounders})")
+        return (f"Diagnosis(data={self.data}, target_y={self.target_y}, variables={self.variables})")
 
     def execute(self):
         logger.debug("Executing data diagnosis...")
@@ -29,7 +27,7 @@ class Diagnosis:
     def calculate_vif(self):
         logger.debug("Calculating VIF for confounders...")
 
-        confounders_df = self.data[self.hourly_confounders + self.daily_confounders].copy()
+        confounders_df = self.data[self.variables].copy()
         confounders_df.dropna(inplace=True)
 
         vif_data = pd.DataFrame()
@@ -43,7 +41,7 @@ class Diagnosis:
         logger.debug("Calculating feature importance using RandomForest...")
 
         # Prepare data for RandomForest model
-        X_features = self.data[self.hourly_confounders + self.daily_confounders].copy()
+        X_features = self.data[self.variables].copy()
         y_target = self.data[self.target_y].copy()
 
         # Drop any rows with NaN values
@@ -66,7 +64,7 @@ class Diagnosis:
     def perform_factor_analysis(self):
         logger.debug("Performing Factor Analysis for variable reduction...")
 
-        confounders_df = self.data[self.hourly_confounders + self.daily_confounders].dropna()
+        confounders_df = self.data[self.variables].dropna()
         scaler = StandardScaler()
         confounders_scaled = scaler.fit_transform(confounders_df)
         fa = FactorAnalysis(n_components=5, random_state=42)
