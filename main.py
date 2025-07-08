@@ -34,6 +34,7 @@ def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
             ranks = ElasticityModel.ranking(consumers, consumer_elasticities, plot=plot, dir_name=dir_name)
             df_results = ranks.copy()
             df_results['pval'] = df_results.index.map(out.get('pval'))
+            df_results.to_csv(f"{dir_name}/results.csv", index=True)
             logger.debug(f'\n{df_results}')
             out.update({'ranking': {'order': ranks['Magnitude'].index.to_list(), 'magnitude': ranks.values.tolist()}})
         json.dump(out, open(f"{dir_name}/out.json", 'w'), indent=4)
@@ -84,7 +85,7 @@ if __name__ == "__main__":
     remove = ['MAC000146', 'MAC000408', 'MAC000879', 'MAC000932', 'MAC000194', 'MAC000418', 'MAC000433',
               'MAC000672', 'MAC000666', 'MAC000945']
     consumers = list(set(consumers) - set(remove))
-    n_test = 100
+    n_test = len(consumers)
     consumers = np.random.choice(consumers, n_test, replace=False).tolist()
     inputs = {'partner': 'testing',
               'consumers': consumers,
