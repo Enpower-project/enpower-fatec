@@ -1,3 +1,7 @@
+import os
+from dotenv import load_dotenv
+load_dotenv(".env")
+
 # Available partners
 partners = ['coopernico', 'ceve', 'cuerva', 'epri', 'testing']
 
@@ -50,3 +54,10 @@ coordinates = {
     # Ireland
     'Dingle': {'latitude': 52.1395, 'longitude': -10.2705, 'country': 'Ireland'}
 }
+
+POSTGRES_USER = os.getenv("POSTGRES_USER")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+POSTGRES_NAME = os.getenv("POSTGRES_NAME")
+API_BASE_URL = os.getenv("API_BASE_URL")

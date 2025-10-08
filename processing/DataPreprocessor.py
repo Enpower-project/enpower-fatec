@@ -24,6 +24,7 @@ class DataPreprocessor:
         self.consumers = consumers_
         self.dir_name = dir_name
         self.days_lag = days_lag_
+        self.aggregated_data = None
         self.data = None
         self.n_periods = None
         self.n_panels = None
@@ -63,7 +64,7 @@ class DataPreprocessor:
     def __repr__(self):
         return f"DataPreprocessor(partner={self.partner}, city={self.city}, days_lag={self.days_lag})"
 
-    def process(self, diagnose=True):
+    def process(self, diagnose=True, get_raw=False):
         if type(self.consumers) == list:
             consumers_dict = {}
             for consumer in self.consumers:
@@ -80,13 +81,18 @@ class DataPreprocessor:
             # Sum consumption of all consumers
             aggregated = pd.DataFrame(aggregated_data.sum(axis=1), columns=['consumption (kWh)'])
             aggregated['price (EUR/kWh)'] = data_consumer['price (EUR/kWh)'].copy()
+            self.aggregated_data = aggregated_data.copy()
             self.data = aggregated
 
         else:
             self.read_data(self.consumers)
-        self.calendar_data()
-        self.weather_data()  # todo: consumer-specific weather data when running aggregated
-        return self.process_data(diagnose=diagnose)
+
+        if get_raw:
+            return self.aggregated_data, self.data
+        else:
+            self.calendar_data()
+            self.weather_data()  # todo: consumer-specific weather data when running aggregated
+            return self.process_data(diagnose=diagnose)
 
     def read_data(self, consumer):
         logger.debug(f"Reading input data for partner '{self.partner}' and consumer '{consumer}'...")
