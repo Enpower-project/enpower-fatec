@@ -4,3 +4,4 @@ POSTGRES_USER=db_user
 POSTGRES_PASSWORD=db_password
 POSTGRES_HOST=db_host
 POSTGRES_PORT=db_port
+API_BASE_URL=url
