@@ -1,16 +1,15 @@
 import os
 import json
-import time
 import uuid
 from uuid import UUID
 from loguru import logger
 from datetime import datetime
+from sqlalchemy import DateTime
 from fastapi import BackgroundTasks
 from pydantic import BaseModel, Field
-from sqlalchemy import DateTime, func
 from sqlalchemy.orm import sessionmaker
-from fastapi.responses import JSONResponse
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from typing import List, Optional, Dict, Any
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import create_engine, Column, String
@@ -99,6 +98,14 @@ class ClusteringResponse(BaseModel):
 
 
 def execute_task(task_id: str, task_request: TaskRequest):
+    """ Execute the FATEC task and update the database accordingly.
+        Args:
+        task_id (str): The ID of the task.
+        task_request (TaskRequest): The request parameters for the task.
+        Returns:
+        None
+    """
+
     db = SessionLocal()
     try:
         # Prepare folder
@@ -139,6 +146,14 @@ def execute_task(task_id: str, task_request: TaskRequest):
 
 
 def execute_clustering_task(clustering_id: str, clustering_request: ClusteringRequest):
+    """ Execute the clustering task and update the database accordingly.
+        Args:
+        clustering_id (str): The ID of the clustering task.
+        clustering_request (ClusteringRequest): The request parameters for the clustering task.
+        Returns:
+        None
+    """
+
     db = SessionLocal()
     try:
         # Prepare folder
@@ -190,6 +205,14 @@ def execute_clustering_task(clustering_id: str, clustering_request: ClusteringRe
 
 @app.post("/execute")
 def execute(task_request: TaskRequest, background_tasks: BackgroundTasks):
+    """ Endpoint to submit a new FATEC task.
+    Args:
+        task_request (TaskRequest): The request body containing task parameters.
+        background_tasks (BackgroundTasks): FastAPI background tasks manager.
+    Returns:
+        dict: Acknowledgment with task ID and status.
+    """
+
     try:
         task_id = str(uuid.uuid4())
 
@@ -232,6 +255,13 @@ def execute(task_request: TaskRequest, background_tasks: BackgroundTasks):
 
 @app.get("/result/{task_id}", response_model=TaskResponse)
 def get_result(task_id: str):
+    """ Endpoint to retrieve the result of a FATEC task.
+    Args:
+        task_id (str): The ID of the task to retrieve.
+    Returns:
+        dict: The task details including status, inputs, and outputs.
+    """
+
     db = SessionLocal()
 
     # Validate task_id format before querying the DB
@@ -272,6 +302,14 @@ def get_result(task_id: str):
 
 @app.post("/clustering")
 def clustering(clustering_request: ClusteringRequest, background_tasks: BackgroundTasks):
+    """ Endpoint to submit a new clustering task based on a completed FATEC task.
+    Args:
+        clustering_request (ClusteringRequest): The request body containing clustering parameters.
+        background_tasks (BackgroundTasks): FastAPI background tasks manager.
+    Returns:
+        dict: Acknowledgment with clustering ID and status.
+    """
+
     try:
         clustering_id = str(uuid.uuid4())
 
@@ -306,6 +344,13 @@ def clustering(clustering_request: ClusteringRequest, background_tasks: Backgrou
 
 @app.get("/clustering_result/{clustering_id}", response_model=ClusteringResponse)
 def get_clustering_result(clustering_id: str):
+    """ Endpoint to retrieve the result of a clustering task.
+    Args:
+        clustering_id (str): The ID of the clustering task to retrieve.
+    Returns:
+        dict: The clustering task details including status, inputs, and outputs.
+    """
+
     db = SessionLocal()
     try:
         try:

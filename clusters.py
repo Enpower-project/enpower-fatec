@@ -16,6 +16,13 @@ from processing.DataPreprocessor import DataPreprocessor
 
 
 def get_consumers_data(inputs, dir_name):
+    """ Fetch consumer data using DataPreprocessor.
+    Args:
+        inputs (dict): Dictionary containing 'consumers', 'partner', and 'city'.
+        dir_name (str): Directory name for saving outputs.
+    Returns:
+        pd.DataFrame: Aggregated consumer data.
+    """
 
     consumer_ids = inputs.get('consumers')
     partner = inputs.get('partner')
@@ -27,6 +34,12 @@ def get_consumers_data(inputs, dir_name):
 
 
 def get_task_results(id):
+    """ Fetch task results from API.
+    Args:
+        id (str): Task ID.
+    Returns:
+        tuple: (inputs, results) if task is completed, else (None, None).
+    """
 
     try:
         resp = requests.get(f"{settings.API_BASE_URL}/result/{id}")
@@ -48,6 +61,15 @@ def get_task_results(id):
 
 
 def clustering_process(df, range_n_clusters, dir_name):
+    """ Perform clustering on the given DataFrame.
+    Args:
+        df (pd.DataFrame): DataFrame containing consumer data.
+        range_n_clusters (range): Range of cluster numbers to evaluate.
+        dir_name (str): Directory name for saving outputs.
+    Returns:
+        dict: Clustering results including optimal clusters and silhouette scores.
+    """
+
     logger.debug(f"Running clustering on {df.shape[0]} consumers with {df.shape[1]-1} features.")
     X = df.drop(columns=['house'], axis=1).values.copy()
     sc = MinMaxScaler()
@@ -69,7 +91,6 @@ def clustering_process(df, range_n_clusters, dir_name):
     df['cluster'] = final_kmeans.fit_predict(X)
 
     # Plot silhouette scores
-    print('')
     plt.figure(figsize=(8, 5))
     plt.plot(range_n_clusters, silhouette_scores, marker='o')
     plt.xlabel('Number of clusters (k)')
@@ -78,9 +99,8 @@ def clustering_process(df, range_n_clusters, dir_name):
     plt.savefig(f"{dir_name}/silhouette_scores.png")
     plt.close()
 
-    colors = cm.get_cmap('tab10', best_k)
-
     # --- Plot cluster consumption profiles ---
+    colors = cm.get_cmap('tab10', best_k)
     plt.figure(figsize=(10, 6))
     for cluster in range(best_k):
         cluster_data = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).values
@@ -137,6 +157,15 @@ def clustering_process(df, range_n_clusters, dir_name):
 
 
 def run_clustering(task_id, dir_name, min_clusters=2, max_clusters=11):
+    """ Main function to run clustering analysis.
+    Args:
+        task_id (str): Task ID to fetch elasticity results.
+        dir_name (str): Directory name for saving outputs.
+        min_clusters (int): Minimum number of clusters to evaluate.
+        max_clusters (int): Maximum number of clusters to evaluate.
+    Returns:
+        dict: Clustering results.
+    """
 
     # --- Get elasticity outputs ---
     elasticity_inputs, elasticity_results = get_task_results(task_id)

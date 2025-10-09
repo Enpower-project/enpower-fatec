@@ -1,14 +1,26 @@
-from processing.DataPreprocessor import DataPreprocessor
-from causality.ElasticityAnalysis import ElasticityModel
-
 import os
 import json
 import numpy as np
 from loguru import logger
 from datetime import datetime
 
+from processing.DataPreprocessor import DataPreprocessor
+from causality.ElasticityAnalysis import ElasticityModel
+
 
 def run_consumers(partner, city, consumers, aggregated, plot=1, dir_name=''):
+    """ Run elasticity analysis for multiple consumers.
+    Args:
+        partner (str): Partner name.
+        city (str): City name.
+        consumers (list): List of consumer IDs.
+        aggregated (bool): Whether to aggregate consumers or process individually.
+        plot (int): Plotting option (0: none, 1: save, 2: show).
+        dir_name (str): Directory name for saving outputs.
+    Returns:
+        dict: Results containing elasticity, ranking, and p-values.
+    """
+
     assert type(partner) == str, "The partner must be a string."
     assert type(city) == str, "The city must be a string."
     assert type(consumers) == list, "The consumers must be a list."
