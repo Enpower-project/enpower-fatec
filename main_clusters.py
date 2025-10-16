@@ -12,6 +12,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import MinMaxScaler
 
 import settings
+from main_ewh import get_ewh_usage, get_ewh_load, get_ewh_mean_profile, get_backpack, stdInput
 from processing.DataPreprocessor import DataPreprocessor
 
 
@@ -60,7 +61,7 @@ def get_task_results(id):
     return inputs, results
 
 
-def clustering_process(df, range_n_clusters, dir_name):
+def clustering_process(df, range_n_clusters, dir_name, use_ewh=False):
     """ Perform clustering on the given DataFrame.
     Args:
         df (pd.DataFrame): DataFrame containing consumer data.
@@ -120,17 +121,34 @@ def clustering_process(df, range_n_clusters, dir_name):
     plt.figure(figsize=(10, 6))
     for cluster in range(best_k):
         cluster_data = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).values
-        if cluster_data.shape[1] >= 24:
+        if cluster_data.shape[1] >= 48:
             color = colors(cluster)
-            for row in cluster_data[:, -24:]:
+            for row in cluster_data[:, 24:48]:
                 plt.plot(row, color=color, alpha=0.2)
-            plt.plot(np.mean(cluster_data[:, -24:], axis=0), color=color, linewidth=2, label=f'Cluster {cluster}')
+            plt.plot(np.mean(cluster_data[:, 24:48], axis=0), color=color, linewidth=2, label=f'Cluster {cluster}')
     plt.xlabel('Hour')
     plt.ylabel('Elasticity')
     plt.legend()
     plt.grid(True)
     plt.savefig(f"{dir_name}/cluster_elasticity.png")
     plt.close()
+
+    # --- Plot EWH profiles if present ---
+    if use_ewh:
+        plt.figure(figsize=(10, 6))
+        for cluster in range(best_k):
+            cluster_data = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).values
+            if cluster_data.shape[1] >= 48:
+                color = colors(cluster)
+                for row in cluster_data[:, -24:]:
+                    plt.plot(row, color=color, alpha=0.2)
+                plt.plot(np.mean(cluster_data[:, -24:], axis=0), color=color, linewidth=2, label=f'Cluster {cluster}')
+        plt.xlabel('Hour')
+        plt.ylabel('EWH Load (kWh)')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(f"{dir_name}/cluster_ewh.png")
+        plt.close()
 
     # --- Prepare JSON output ---
     clusters_output = {
@@ -141,22 +159,20 @@ def clustering_process(df, range_n_clusters, dir_name):
     for cluster in range(best_k):
         cluster_members = df[df['cluster'] == cluster]['house'].tolist()
         mean_consumption = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).iloc[:, :24].mean().tolist()
-        mean_elasticity = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).iloc[:, -24:].mean().tolist()
+        mean_elasticity = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).iloc[:, 24:48].mean().tolist()
         clusters_output['clusters'][str(cluster)] = {
             'members': cluster_members,
             'mean_consumption': mean_consumption,
             'mean_elasticity': mean_elasticity
         }
-
-    # --- Save clustering results to JSON ---
-    with open(f"{dir_name}/clusters.json", 'w') as f:
-        json.dump(clusters_output, f, indent=4)
-    logger.debug(f"Clustering results saved to {dir_name}/clusters.json")
+        if use_ewh:
+            mean_ewh = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).iloc[:, -24:].mean().tolist()
+            clusters_output['clusters'][str(cluster)]['mean_ewh'] = mean_ewh
 
     return clusters_output
 
 
-def run_clustering(task_id, dir_name, min_clusters=2, max_clusters=11):
+def run_clustering(task_id, dir_name, min_clusters=2, max_clusters=11, use_ewh=True):
     """ Main function to run clustering analysis.
     Args:
         task_id (str): Task ID to fetch elasticity results.
@@ -209,9 +225,31 @@ def run_clustering(task_id, dir_name, min_clusters=2, max_clusters=11):
     pivoted_df_1 = mean_consumption.pivot(index='house', columns='half_hour', values='energy_consumption').reset_index()
     pivoted_df = pd.merge(pivoted_df_1, pivoted_df, on='house', how='inner')
 
+    # --- Merge with EWH profile ---
+    backpack = None
+    if use_ewh:
+        logger.debug("Generating EWH profiles for each consumer.")
+        profile_cols = [f'ewh_{i}' for i in range(24)]
+        usage = [get_ewh_usage()['ewh_usage'] for _ in range(len(pivoted_df))]
+        backpack = [get_backpack(stdInput, usage_) for usage_ in usage]
+        loads = [get_ewh_load(usage_, backpack_) for usage_, backpack_ in zip(usage, backpack)]
+        profiles = [get_ewh_mean_profile(load).values.flatten().tolist() for load in loads]
+        pivoted_df[profile_cols] = pd.DataFrame(profiles, index=pivoted_df.index)
+
     # --- Run cluster analysis ---
     range_n_clusters = range(min_clusters, max_clusters)
-    clusters = clustering_process(pivoted_df, range_n_clusters, dir_name)
+    clusters = clustering_process(pivoted_df, range_n_clusters, dir_name, use_ewh=use_ewh)
+
+    # --- Additional outputs for optimization ---
+    if use_ewh and backpack:
+        for cluster_id, cluster_info in clusters['clusters'].items():
+            member_backpacks = [backpack[pivoted_df[pivoted_df['house'] == member].index[0]] for member in cluster_info['members']]
+            clusters['clusters'][cluster_id]['backpack'] = member_backpacks
+
+    # --- Save clustering results to JSON ---
+    with open(f"{dir_name}/clusters.json", 'w') as f:
+        json.dump(clusters, f, indent=4)
+    logger.debug(f"Clustering results saved to {dir_name}/clusters.json")
 
     return clusters
 
@@ -220,9 +258,9 @@ if __name__ == "__main__":
 
     # Input data
     inputs = {
-        'task_id': "e9811572-aa97-4987-aea1-765c4fe6fe29",
+        'task_id': "cc231d53-3a36-43b8-b5bb-bd9363231609",
         'min_clusters': 2,
-        'max_clusters': 11
+        'max_clusters': 8
     }
 
     # Prepare output folder

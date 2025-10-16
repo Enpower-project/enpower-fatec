@@ -16,8 +16,9 @@ from sqlalchemy import create_engine, Column, String
 from sqlalchemy.ext.declarative import declarative_base
 
 import settings
-from main import run_consumers
-from clusters import run_clustering
+from main_clusters import run_clustering
+from main_ewh import run_ewh_optimization
+from main_elasticity import run_consumers
 
 # CLI command: uvicorn app:app --reload --log-level debug
 app = FastAPI(title="FATEC tool API",
@@ -58,6 +59,16 @@ class ClusteringTask(Base):
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class EWHTask(Base):
+    __tablename__ = "ewh_tasks"
+    id = Column(String, primary_key=True)
+    status = Column(String, default="pending")
+    result = Column(JSONB, nullable=True)
+    parameters = Column(JSONB)
+    launch_time = Column(DateTime, default=datetime.utcnow)
+    last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # Create table if it does not exist
 Base.metadata.create_all(bind=engine)
 
@@ -88,6 +99,20 @@ class ClusteringRequest(BaseModel):
 
 class ClusteringResponse(BaseModel):
     clustering_id: UUID
+    launch_time: str
+    status: str
+    inputs: Dict[str, Any]
+    outputs: Optional[Dict[str, Any]]
+    last_updated: str
+
+
+class EWHTaskRequest(BaseModel):
+    task_id: UUID = Field(..., description="The ID of the previously completed task "
+                                           "whose output will be used for EWH optimization.")
+
+
+class EWHTaskResponse(BaseModel):
+    ewh_task_id: UUID
     launch_time: str
     status: str
     inputs: Dict[str, Any]
@@ -190,6 +215,53 @@ def execute_clustering_task(clustering_id: str, clustering_request: ClusteringRe
     except Exception as e:
         logger.exception("Error in clustering execution")
         task = db.query(ClusteringTask).filter(ClusteringTask.id == clustering_id).first()
+        if task:
+            task.status = "failed"
+            task.result = {"error": str(e)}
+            task.last_updated = datetime.utcnow()
+            db.commit()
+
+    finally:
+        db.close()
+
+
+def execute_ewh_task(ewh_task_id: str, ewh_request: EWHTaskRequest):
+    """ Execute the EWH optimization task and update the database accordingly.
+        Args:
+        ewh_task_id (str): The ID of the EWH optimization task.
+        ewh_request (EWHTaskRequest): The request parameters for the EWH optimization task.
+        Returns:
+        None
+    """
+
+    db = SessionLocal()
+    try:
+        # Prepare folder
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        directory_name = f"results/ewh_optimization_{timestamp}_{ewh_task_id}"
+        if not os.path.exists(directory_name):
+            os.makedirs(directory_name)
+        logger.add(f"{directory_name}/out.log", level="DEBUG", colorize=False, backtrace=True, diagnose=True)
+
+        inputs = {
+            "task_id": str(ewh_request.task_id),
+        }
+        json.dump(inputs, open(f"{directory_name}/inputs.json", 'w'), indent=4)
+
+        result_data = run_ewh_optimization(inputs, dir_path=directory_name)
+        logger.debug("EWH optimization execution completed.")
+
+        # Update DB
+        task = db.query(EWHTask).filter(EWHTask.id == ewh_task_id).first()
+        if task:
+            task.status = "completed"
+            task.result = result_data
+            task.last_updated = datetime.utcnow()
+            db.commit()
+
+    except Exception as e:
+        logger.exception("Error in EWH optimization execution")
+        task = db.query(EWHTask).filter(EWHTask.id == ewh_task_id).first()
         if task:
             task.status = "failed"
             task.result = {"error": str(e)}
@@ -375,6 +447,87 @@ def get_clustering_result(clustering_id: str):
         }
 
         logger.debug(f"Returning clustering response: {response_data}")
+        return response_data
+
+    finally:
+        db.close()
+
+
+@app.post("/ewh_optimization")
+def ewh_optimization_endpoint(ewh_request: EWHTaskRequest, background_tasks: BackgroundTasks):
+    """ Endpoint to submit a new EWH optimization task based on a completed FATEC and clustering task.
+    Args:
+        ewh_request (EWHTaskRequest): The request body containing EWH optimization parameters.
+        background_tasks (BackgroundTasks): FastAPI background tasks manager.
+    Returns:
+        dict: Acknowledgment with EWH task ID and status.
+    """
+
+    try:
+        ewh_task_id = str(uuid.uuid4())
+
+        db = SessionLocal()
+
+        parameters_json = ewh_request.dict()
+        parameters_json['task_id'] = str(parameters_json['task_id'])
+
+        new_task = EWHTask(
+            id=ewh_task_id,
+            status="pending",
+            result=None,
+            parameters=parameters_json,
+            launch_time=datetime.utcnow(),
+            last_updated=datetime.utcnow()
+        )
+        db.add(new_task)
+        db.commit()
+
+        # Launch EWH optimization asynchronously
+        background_tasks.add_task(execute_ewh_task, ewh_task_id, ewh_request)
+
+        return {"ewh_task_id": ewh_task_id, "status": "pending"}
+
+    except Exception as e:
+        logger.error(f"Unexpected error in EWH optimization endpoint: {e}")
+        return JSONResponse(status_code=500, content={"error": "Internal Server Error"})
+
+    finally:
+        db.close()
+
+
+@app.get("/ewh_result/{ewh_task_id}", response_model=EWHTaskResponse)
+def get_ewh_result(ewh_task_id: str):
+    """ Endpoint to retrieve the result of an EWH optimization task.
+    Args:
+        ewh_task_id (str): The ID of the EWH optimization task to retrieve.
+    Returns:
+        dict: The EWH optimization task details including status, inputs, and outputs.
+    """
+
+    db = SessionLocal()
+    try:
+        try:
+            ewh_uuid = UUID(ewh_task_id, version=4)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid ewh_task_id format")
+
+        task = db.query(EWHTask).filter(EWHTask.id == str(ewh_uuid)).first()
+        if not task:
+            raise HTTPException(status_code=404, detail="EWH optimization task not found")
+
+        inputs = task.parameters if isinstance(task.parameters, dict) else json.loads(task.parameters)
+        outputs = task.result if isinstance(task.result, dict) else json.loads(task.result) if task.result else None
+
+        response_data = {
+            "ewh_task_id": task.id,
+            "launch_time": task.launch_time.isoformat(),
+            "status": task.status,
+            "inputs": inputs,
+            "outputs": outputs,
+            "last_updated": task.last_updated.isoformat(),
+        }
+
+        logger.debug(f"Returning EWH response: {response_data}")
         return response_data
 
     finally:
