@@ -14,43 +14,84 @@ from ewh.ewh_flex.ewh_power_functions import real_ewh_load_estimator, create_usa
 
 def get_ewh_usage():
     """
-    Returns one random electric water heater usage profile.
+    Returns one random electric water heater (EWH) usage profile.
     Each profile is a list of heating events with start time and duration (minutes).
+
+    The profiles reflect realistic household usage patterns, including
+    morning showers, meal-related water heating, and evening routines.
     """
 
     profiles = [
-        # Profile 1 — typical morning, lunch, and evening use
+        # Profile 1 — typical family (morning showers, lunch, evening use)
         [
-            {"start": "07/12/2022 06:30", "duration": 15},
-            {"start": "07/12/2022 12:00", "duration": 10},
+            {"start": "07/12/2022 06:30", "duration": 20},
+            {"start": "07/12/2022 12:30", "duration": 10},
+            {"start": "07/12/2022 19:00", "duration": 25},
+        ],
+
+        # Profile 2 — single occupant, moderate evening use
+        [
+            {"start": "07/12/2022 07:15", "duration": 10},
+            {"start": "07/12/2022 18:45", "duration": 15},
+        ],
+
+        # Profile 3 — family with children (multiple showers, laundry, dishes)
+        [
+            {"start": "07/12/2022 06:15", "duration": 25},
+            {"start": "07/12/2022 07:30", "duration": 15},
+            {"start": "07/12/2022 13:00", "duration": 10},
             {"start": "07/12/2022 19:30", "duration": 20},
+            {"start": "07/12/2022 21:00", "duration": 10},
         ],
 
-        # Profile 2 — later morning, quick midday, short evening
+        # Profile 4 — retired couple (late morning, lunch, early evening)
         [
-            {"start": "07/12/2022 08:00", "duration": 10},
-            {"start": "07/12/2022 12:15", "duration": 5},
-            {"start": "07/12/2022 20:00", "duration": 5},
+            {"start": "07/12/2022 08:30", "duration": 15},
+            {"start": "07/12/2022 12:15", "duration": 10},
+            {"start": "07/12/2022 17:30", "duration": 15},
         ],
 
-        # Profile 3 — early riser, long evening session
+        # Profile 5 — shift worker (late wake-up, late-night use)
+        [
+            {"start": "07/12/2022 10:00", "duration": 10},
+            {"start": "07/12/2022 15:30", "duration": 10},
+            {"start": "07/12/2022 23:15", "duration": 20},
+        ],
+
+        # Profile 6 — energy-conscious single (short and few events)
+        [
+            {"start": "07/12/2022 07:00", "duration": 5},
+            {"start": "07/12/2022 20:00", "duration": 10},
+        ],
+
+        # Profile 7 — large household (clustered morning & evening peaks)
+        [
+            {"start": "07/12/2022 06:00", "duration": 20},
+            {"start": "07/12/2022 06:45", "duration": 15},
+            {"start": "07/12/2022 07:30", "duration": 15},
+            {"start": "07/12/2022 19:00", "duration": 25},
+            {"start": "07/12/2022 20:00", "duration": 15},
+        ],
+
+        # Profile 8 — student apartment (irregular hours, few uses)
+        [
+            {"start": "07/12/2022 09:30", "duration": 10},
+            {"start": "07/12/2022 14:30", "duration": 5},
+            {"start": "07/12/2022 22:00", "duration": 15},
+        ],
+
+        # Profile 9 — family with early risers and evening laundry
         [
             {"start": "07/12/2022 05:45", "duration": 20},
-            {"start": "07/12/2022 13:00", "duration": 5},
+            {"start": "07/12/2022 12:00", "duration": 10},
+            {"start": "07/12/2022 18:30", "duration": 20},
             {"start": "07/12/2022 21:00", "duration": 15},
         ],
 
-        # Profile 4 — high evening demand household
+        # Profile 10 — light user (compact morning + evening routine)
         [
-            {"start": "07/12/2022 07:30", "duration": 10},
-            {"start": "07/12/2022 18:00", "duration": 10},
-            {"start": "07/12/2022 20:30", "duration": 20},
-        ],
-
-        # Profile 5 — energy-efficient household, fewer short events
-        [
-            {"start": "07/12/2022 07:00", "duration": 5},
-            {"start": "07/12/2022 19:00", "duration": 10},
+            {"start": "07/12/2022 07:15", "duration": 10},
+            {"start": "07/12/2022 19:30", "duration": 15},
         ],
     ]
 

@@ -522,7 +522,7 @@ def ewh_solver(dataset, varBackpack, optSolver = 'HiGHS', solverPath=None):
     ##############################################
 
     # Write the milp to a .lp file
-    milp.writeLP('thermo_milp.lp')
+    # milp.writeLP('thermo_milp.lp')
 
     #time limit depends on simulated days plus 1 minute
     timeLimit = (daySim * 30) + 60
