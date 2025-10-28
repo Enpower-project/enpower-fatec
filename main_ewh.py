@@ -5,97 +5,109 @@ import random
 import requests
 import pandas as pd
 from loguru import logger
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import settings
 from ewh.ewh_flex import ewh_optimization, build_varBackpack
 from ewh.ewh_flex.ewh_power_functions import real_ewh_load_estimator, create_usage_dataset
 
 
-def get_ewh_usage():
+def get_ewh_usage(days=1):
     """
-    Returns one random electric water heater (EWH) usage profile.
-    Each profile is a list of heating events with start time and duration (minutes).
-
-    The profiles reflect realistic household usage patterns, including
-    morning showers, meal-related water heating, and evening routines.
+    Generate realistic electric water heater (EWH) usage profiles
+    for a household of 1–5 people over a given number of days,
+    ensuring no overlapping events.
+    Returns:
+      [{"start": "DD/MM/YYYY HH:MM", "duration": X}, ...]
     """
 
-    profiles = [
-        # Profile 1 — typical family (morning showers, lunch, evening use)
-        [
-            {"start": "07/12/2022 06:30", "duration": 20},
-            {"start": "07/12/2022 12:30", "duration": 10},
-            {"start": "07/12/2022 19:00", "duration": 25},
-        ],
+    # Randomly select one household size, with weights, for the entire period
+    household_size = random.choices([1, 2, 3, 4, 5],
+                                    weights=[0.25, 0.25, 0.25, 0.15, 0.10])[0]
 
-        # Profile 2 — single occupant, moderate evening use
-        [
-            {"start": "07/12/2022 07:15", "duration": 10},
-            {"start": "07/12/2022 18:45", "duration": 15},
-        ],
+    # Day periods windows
+    morning_window = (6, 10)    # 06:00–10:00
+    midday_window = (11, 14)    # 11:00–14:00
+    evening_window = (18, 24)   # 18:00–00:00
 
-        # Profile 3 — family with children (multiple showers, laundry, dishes)
-        [
-            {"start": "07/12/2022 06:15", "duration": 25},
-            {"start": "07/12/2022 07:30", "duration": 15},
-            {"start": "07/12/2022 13:00", "duration": 10},
-            {"start": "07/12/2022 19:30", "duration": 20},
-            {"start": "07/12/2022 21:00", "duration": 10},
-        ],
+    def random_time_in_window(start_hour, end_hour):
+        hour = random.randint(start_hour, end_hour - 1)
+        minute = random.randint(0, 59)
+        return f"{hour:02d}:{minute:02d}"
 
-        # Profile 4 — retired couple (late morning, lunch, early evening)
-        [
-            {"start": "07/12/2022 08:30", "duration": 15},
-            {"start": "07/12/2022 12:15", "duration": 10},
-            {"start": "07/12/2022 17:30", "duration": 15},
-        ],
+    all_events = []
 
-        # Profile 5 — shift worker (late wake-up, late-night use)
-        [
-            {"start": "07/12/2022 10:00", "duration": 10},
-            {"start": "07/12/2022 15:30", "duration": 10},
-            {"start": "07/12/2022 23:15", "duration": 20},
-        ],
+    for day_offset in range(days):
+        date_obj = datetime.now() + timedelta(days=day_offset)
+        date_str = date_obj.strftime("%d/%m/%Y")
+        events = []
 
-        # Profile 6 — energy-conscious single (short and few events)
-        [
-            {"start": "07/12/2022 07:00", "duration": 5},
-            {"start": "07/12/2022 20:00", "duration": 10},
-        ],
+        ### Bath events ###
+        num_baths = 0
+        for _ in range(household_size):
+            num_baths += 1
+            if random.random() < 0.1:  # 10% chance of a second bath
+                num_baths += 1
 
-        # Profile 7 — large household (clustered morning & evening peaks)
-        [
-            {"start": "07/12/2022 06:00", "duration": 20},
-            {"start": "07/12/2022 06:45", "duration": 15},
-            {"start": "07/12/2022 07:30", "duration": 15},
-            {"start": "07/12/2022 19:00", "duration": 25},
-            {"start": "07/12/2022 20:00", "duration": 15},
-        ],
+        morning_baths = random.randint(1, min(num_baths, household_size))
+        evening_baths = num_baths - morning_baths
 
-        # Profile 8 — student apartment (irregular hours, few uses)
-        [
-            {"start": "07/12/2022 09:30", "duration": 10},
-            {"start": "07/12/2022 14:30", "duration": 5},
-            {"start": "07/12/2022 22:00", "duration": 15},
-        ],
+        for _ in range(morning_baths):
+            t = random_time_in_window(*morning_window)
+            events.append({"start": f"{date_str} {t}", "duration": random.randint(3, 15)})
 
-        # Profile 9 — family with early risers and evening laundry
-        [
-            {"start": "07/12/2022 05:45", "duration": 20},
-            {"start": "07/12/2022 12:00", "duration": 10},
-            {"start": "07/12/2022 18:30", "duration": 20},
-            {"start": "07/12/2022 21:00", "duration": 15},
-        ],
+        for _ in range(evening_baths):
+            t = random_time_in_window(*evening_window)
+            events.append({"start": f"{date_str} {t}", "duration": random.randint(3, 15)})
 
-        # Profile 10 — light user (compact morning + evening routine)
-        [
-            {"start": "07/12/2022 07:15", "duration": 10},
-            {"start": "07/12/2022 19:30", "duration": 15},
-        ],
-    ]
+        ### Cooking/cleaning events ###
+        num_cooking = 1
+        if random.random() < 0.3:  # 30% chance of 2 cooking events
+            num_cooking = 2
 
-    return {'ewh_usage': random.choice(profiles)}
+        for _ in range(num_cooking):
+            window = random.choice([morning_window, midday_window, evening_window])
+            t = random_time_in_window(*window)
+            events.append({"start": f"{date_str} {t}", "duration": random.randint(2, 10)})
+
+        ### Add slight jitter (~10 min) ###
+        ### The goal is to prevent all events to ###
+        ### start in static XXh00 timestamps     ###
+        def jitter(event):
+            t = datetime.strptime(event["start"], "%d/%m/%Y %H:%M")
+            jitter = timedelta(minutes=random.randint(-10, 10))
+            shifted = t + jitter
+            return {"start": shifted.strftime("%d/%m/%Y %H:%M"), "duration": event["duration"]}
+
+        events = [jitter(e) for e in events]
+
+        ### Sort and ensure no overlaps ###
+        events.sort(key=lambda e: datetime.strptime(e["start"], "%d/%m/%Y %H:%M"))
+
+        non_overlap_events = []
+        last_end = None
+
+        for e in events:
+            start_time = datetime.strptime(e["start"], "%d/%m/%Y %H:%M")
+            end_time = start_time + timedelta(minutes=e["duration"])
+
+            if last_end and start_time < last_end:
+                # Shift start time forward to the last event end
+                start_time = last_end
+                end_time = start_time + timedelta(minutes=e["duration"])
+
+            last_end = end_time
+            non_overlap_events.append({
+                "start": start_time.strftime("%d/%m/%Y %H:%M"),
+                "duration": e["duration"]
+            })
+
+        all_events.extend(non_overlap_events)
+
+    ### Sort all events (ensuring cross-day safety) ###
+    all_events.sort(key=lambda e: datetime.strptime(e["start"], "%d/%m/%Y %H:%M"))
+
+    return all_events
 
 
 def get_backpack(paramsInput, dataset):

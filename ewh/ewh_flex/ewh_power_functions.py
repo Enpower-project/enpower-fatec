@@ -17,23 +17,29 @@ def create_usage_dataset(waterUsage):
 
     waterUsage = pd.DataFrame(waterUsage).copy()
     # create dataframe with the full minute resolution based on the
-    firstUsage = pd.to_datetime(waterUsage.loc[0,'start']).strftime('%Y-%m-%d')
-    lastUsage = pd.to_datetime(waterUsage.loc[len(waterUsage)-1,'start']).strftime('%Y-%m-%d')
+    firstUsage = pd.to_datetime(waterUsage.loc[0,'start'], format='%d/%m/%Y %H:%M').strftime('%Y-%m-%d')
+    lastUsage = pd.to_datetime(waterUsage.loc[len(waterUsage)-1,'start'], format='%d/%m/%Y %H:%M').strftime('%Y-%m-%d')
     if firstUsage == lastUsage:
         lastUsage = (pd.to_datetime(lastUsage) + pd.DateOffset(days=1)).strftime('%Y-%m-%d')
-    dataset = pd.DataFrame(pd.date_range(firstUsage, lastUsage, freq='min'), columns=['timestamp'])
+
+    index_ = pd.date_range(start=firstUsage, end=lastUsage, freq='min')
+    dataset = pd.DataFrame(index=index_)
+    dataset['timestamp'] = dataset.index  # populate timestamps
+    dataset['delta_use'] = 0
     # delete last row (midnight of next day)
     dataset = dataset[:-1]
     # add delta_use column
     dataset['delta_use'] = 0
 
     # mark periods of usage
-    for i in range(0,len(waterUsage)):
-        _start = pd.to_datetime(waterUsage.loc[i,'start'])
-        _duration = int(waterUsage.loc[i,'duration'])
-        _end = _start + pd.DateOffset(minutes=_duration-1)
-        _period = pd.date_range(_start, _end, freq='min')
-        dataset.loc[dataset['timestamp'].isin(list(_period)),'delta_use'] = 1
+    for i in range(len(waterUsage)):
+        _start = pd.to_datetime(waterUsage.loc[i, 'start'], format='%d/%m/%Y %H:%M')
+        _duration = int(waterUsage.loc[i, 'duration'])
+        _end = _start + pd.Timedelta(minutes=_duration - 1)
+
+        dataset.loc[_start:_end, 'delta_use'] = 1
+
+    dataset.reset_index(drop=True, inplace=True)
 
     return dataset
 

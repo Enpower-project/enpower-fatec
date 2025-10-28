@@ -144,7 +144,7 @@ def clustering_process(df, range_n_clusters, dir_name, use_ewh=False):
                     plt.plot(row, color=color, alpha=0.2)
                 plt.plot(np.mean(cluster_data[:, -24:], axis=0), color=color, linewidth=2, label=f'Cluster {cluster}')
         plt.xlabel('Hour')
-        plt.ylabel('EWH Load (kWh)')
+        plt.ylabel('EWH Load (Wh)')
         plt.legend()
         plt.grid(True)
         plt.savefig(f"{dir_name}/cluster_ewh.png")
@@ -230,7 +230,7 @@ def run_clustering(task_id, dir_name, min_clusters=2, max_clusters=11, use_ewh=T
     if use_ewh:
         logger.debug("Generating EWH profiles for each consumer.")
         profile_cols = [f'ewh_{i}' for i in range(24)]
-        usage = [get_ewh_usage()['ewh_usage'] for _ in range(len(pivoted_df))]
+        usage = [get_ewh_usage(days=7) for _ in range(len(pivoted_df))]
         backpack = [get_backpack(stdInput, usage_) for usage_ in usage]
         loads = [get_ewh_load(usage_, backpack_) for usage_, backpack_ in zip(usage, backpack)]
         profiles = [get_ewh_mean_profile(load).values.flatten().tolist() for load in loads]
