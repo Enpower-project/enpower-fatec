@@ -31,12 +31,12 @@ def build_varBackpack(paramsInput, dataset):
             "ewh_max_temp": 80,
             "ewh_std_temp": 60,
             "user_comf_temp": 40,
-            "tariff": 1,
-            "price_simple": 0.119585,
-            "price_dual_day": 0.149118,
-            "price_dual_night": 0.070511,
-            "tariff_simple": 0.3604,
-            "tariff_dual": 0.4285
+            "tariff": 0,
+            "price_simple": 0,
+            "price_dual_day": 0,
+            "price_dual_night": 0,
+            "tariff_simple": 0,
+            "tariff_dual": 0
         }
     }
 

@@ -1,10 +1,11 @@
 import os
 import json
 import random
-
 import requests
+import numpy as np
 import pandas as pd
 from loguru import logger
+import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 
 import settings
@@ -213,6 +214,28 @@ def run_ewh_optimization(inputs, dir_path=None):
         }
         logger.info(f"Optimization completed for cluster {i+1}/{nr_clusters}")
 
+    # Plot original vs optimized load for each cluster
+    cmap = plt.cm.get_cmap('tab20')
+    indices = np.random.choice(range(cmap.N), size=nr_clusters, replace=False)
+    colors = [cmap(i) for i in indices]
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for i in range(nr_clusters):
+        cluster_data = out[f'cluster_{i}']
+        timestamps = pd.date_range(start=datetime.combine(today, datetime.min.time()), periods=24, freq='H')
+
+        # Original mean load
+        ax.plot(timestamps, cluster_data['mean_ewh_load'], label=f'Cluster {i} Original', linestyle='--', color=colors[i])
+
+        # Optimized load
+        opt_load = cluster_data['opt_output']['opt_diagrams']['optimized_load']
+        ax.plot(timestamps, opt_load, label=f'Cluster {i} Optimized', linestyle='-', color=colors[i])
+    ax.set_xlabel('Time')
+    ax.set_ylabel('EWH Load (W)')
+    ax.set_title('Original vs Optimized EWH Load Profiles by Cluster')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(f"{dir_path}/ewh_optimization_comparison.png")
+
     # --- Save clustering results to JSON ---
     json.dump(out, open(f"{dir_path}/opt_results.json", 'w'), indent=4)
     logger.info(f"Optimization results saved to {dir_path}/opt_results.json")
@@ -230,19 +253,19 @@ stdInput = {
     "ewh_power": 1800,
     "ewh_max_temp": 80,
     "user_comf_temp": 40,
-    "tariff": 1,
-    "price_simple": 0.119585,
-    "price_dual_day": 0.149118,
-    "price_dual_night": 0.070511,
-    "tariff_simple": 0.3604,
-    "tariff_dual": 0.4285
+    "tariff": 0,
+    "price_simple": 0,
+    "price_dual_day": 0,
+    "price_dual_night": 0,
+    "tariff_simple": 0,
+    "tariff_dual": 0
   }
 }
 
 if __name__ == "__main__":
 
     # Input data
-    input = {'task_id': 'ffcea6e5-ef3b-4be4-88a7-b30862cc0e0b'}
+    input = {'task_id': '56a7c1db-281b-4986-8960-da966a55fa38'}
 
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
