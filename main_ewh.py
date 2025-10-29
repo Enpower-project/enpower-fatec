@@ -8,6 +8,7 @@ from loguru import logger
 from datetime import datetime, timedelta
 
 import settings
+from ewh.ewh_flex.ewh_opt_functions import resample_data
 from ewh.ewh_flex import ewh_optimization, build_varBackpack
 from ewh.ewh_flex.ewh_power_functions import real_ewh_load_estimator, create_usage_dataset
 
@@ -117,10 +118,13 @@ def get_backpack(paramsInput, dataset):
 
 def get_ewh_load(usage, backpack):
     ewh_usage = create_usage_dataset(usage)
-    return real_ewh_load_estimator(ewh_usage, backpack)
+    load = real_ewh_load_estimator(ewh_usage, backpack)
+    df = resample_data(pd.DataFrame({'timestamp': ewh_usage['timestamp'], 'load': load.values, 'delta_use': ewh_usage['delta_use']}), resolution='1h')
+    return df
 
 
 def get_ewh_mean_profile(load):
+    load.set_index('timestamp', inplace=True)
     return load.groupby(load.index.hour).mean()
 
 
@@ -235,7 +239,7 @@ stdInput = {
 if __name__ == "__main__":
 
     # Input data
-    input = {'task_id': 'd132140d-37ab-47a4-9358-c6475e1ed07d'}
+    input = {'task_id': '2157df9a-a63e-448b-8657-982a5cb7b065'}
 
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

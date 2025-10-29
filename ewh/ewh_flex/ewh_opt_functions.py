@@ -92,7 +92,7 @@ def build_varBackpack(paramsInput, dataset):
     # EWH minimum allowed temperature
     ewh_min_temp = 0
     # EWH start-point temperature
-    ewh_start_temp = 60
+    ewh_start_temp = 40
     # total flow rate
     flow_rate_min = 8.5  ## kg/min
     # Minimum allowable energy content of the prosumer’s EWH (kWh)
