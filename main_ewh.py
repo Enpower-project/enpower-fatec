@@ -194,12 +194,15 @@ def run_ewh_optimization(inputs, dir_path=None):
     out = {}
     for i in range(nr_clusters):
         # -- Prepare dataset for optimization --
-        mean_load_ = clustering_results[str(i)]['mean_ewh']
+        mean_load_ = clustering_results[str(i)]['mean_ewh_load']
+        mean_usage_ = clustering_results[str(i)]['mean_ewh_usage']
         today = datetime.now().date()
         timestamps = pd.date_range(start=datetime.combine(today, datetime.min.time()), periods=24, freq='H')
         dataset_ = pd.DataFrame(mean_load_, columns=['load'], dtype=float)
         dataset_['timestamp'] = timestamps
-        dataset_ = dataset_[['timestamp', 'load']]
+        dataset_['delta_use'] = mean_usage_
+        dataset_ = dataset_[['timestamp', 'load', 'delta_use']]
+        logger.debug(f"Dataset for cluster {i}:\n{dataset_.head()}")
 
         # -- Optimize EWH load --
         opt_output = optimize_ewh_load(params_input, dataset_, resample='1h', solver='CBC', dir_path=dir_path)
@@ -239,7 +242,7 @@ stdInput = {
 if __name__ == "__main__":
 
     # Input data
-    input = {'task_id': '2157df9a-a63e-448b-8657-982a5cb7b065'}
+    input = {'task_id': 'ffcea6e5-ef3b-4be4-88a7-b30862cc0e0b'}
 
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

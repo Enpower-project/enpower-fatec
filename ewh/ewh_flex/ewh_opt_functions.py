@@ -178,7 +178,7 @@ def resample_data(dataset, resolution='15m'):
      # Set the timestamp column as the index
     _dataset = dataset.set_index('timestamp')
     # Resample the 'load' column to 15-minute/1h intervals and sum the values
-    resampled_load = _dataset['load'].resample(resolution).sum()
+    resampled_load = _dataset['load'].resample(resolution).mean()
     # function to resample delta_use to 15min/1h
     def calculate_ratio(series):
         return series.sum() / len(series)
