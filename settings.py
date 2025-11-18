@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 load_dotenv(".env")
 
 # Available partners
-partners = ['coopernico', 'ceve', 'cuerva', 'epri', 'testing']
+partners = ['coopernico', 'ceve', 'cuerva', 'epri', 'testing', 'validation']
 
 # Available countries
 available_countries = ['Portugal', 'Spain', 'England', 'Ireland']

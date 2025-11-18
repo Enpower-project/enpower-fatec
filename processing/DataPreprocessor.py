@@ -85,7 +85,7 @@ class DataPreprocessor:
             self.data = aggregated
 
         else:
-            self.read_data(self.consumers)
+            self.read_data(self.consumers, self.latitude, self.longitude)
 
         if get_raw:
             return self.aggregated_data, self.data
@@ -94,9 +94,9 @@ class DataPreprocessor:
             self.weather_data()  # todo: consumer-specific weather data when running aggregated
             return self.process_data(diagnose=diagnose)
 
-    def read_data(self, consumer):
+    def read_data(self, consumer, latitude, longitude):
         logger.debug(f"Reading input data for partner '{self.partner}' and consumer '{consumer}'...")
-        partner_processing = PartnersProcessor(self.partner, consumer)
+        partner_processing = PartnersProcessor(self.partner, consumer, latitude, longitude)
         self.data = partner_processing.process()
         self.data.index = pd.to_datetime(self.data.index, format='%Y-%m-%d %H:%M:%S')
 
@@ -226,13 +226,14 @@ class DataPreprocessor:
             self.data_original[self.target_y] = self.data_original[self.target_y_col].apply(lambda x: (np.log(x + 0.001)))
         else:
             self.data_original[self.target_y] = self.data_original[self.target_y_col].apply(lambda x: (np.log(x)))
-        scaling_drop = [self.target_y_col, self.target_t_col]
-        self.data_original_ = self.data_original.drop(columns=scaling_drop)
-        data_columns = self.data_original_.columns
-        self.data_scaled = StandardScaler().fit_transform(self.data_original_)
-        self.data_scaled = pd.DataFrame(self.data_scaled, columns=data_columns, index=self.data_original.index)
-        self.data_scaled[self.target_y_col] = self.data_original [self.target_y_col]
-        self.data_scaled[self.target_t_col] = self.data_original[self.target_t_col]
+        # scaling_drop = [self.target_y_col, self.target_t_col]
+        # self.data_original_ = self.data_original.drop(columns=scaling_drop)
+        # data_columns = self.data_original_.columns
+        # self.data_scaled = StandardScaler().fit_transform(self.data_original_)
+        # self.data_scaled = pd.DataFrame(self.data_scaled, columns=data_columns, index=self.data_original.index)
+        # self.data_scaled[self.target_y_col] = self.data_original[self.target_y_col]
+        # self.data_scaled[self.target_t_col] = self.data_original[self.target_t_col]
+        self.data_scaled = self.data_original.copy()
 
         # Feature diagnosis
         if diagnose:
