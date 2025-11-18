@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 from os import listdir
 from loguru import logger
-import statsmodels.api as sm
 import matplotlib.pyplot as plt
 from sklearn.linear_model import PoissonRegressor
 
@@ -367,6 +366,7 @@ class PartnersProcessor:
 
         # Poisson Regression
         # - Add consumption lagged variables
+        df['consumption_lag_1h'] = df['consumption (kWh)'].shift(1)
         df['consumption_lag_1d'] = df['consumption (kWh)'].shift(24)
         df['consumption_lag_7d'] = df['consumption (kWh)'].shift(24 * 7)
         df.dropna(inplace=True)
@@ -375,7 +375,7 @@ class PartnersProcessor:
         df['dayofweek'] = df.index.dayofweek
         df['month'] = df.index.month
         # - Regression
-        target, covariates = 'consumption (kWh)', ['temperature', 'hour', 'dayofweek', 'month']
+        target, covariates = 'consumption (kWh)', ['temperature', 'hour', 'dayofweek', 'month', 'consumption_lag_1d']
         reg_params = {'alpha': 0.0, 'fit_intercept': True, 'max_iter': 5000, 'tol': 1e-7}
         X = df[covariates].astype(float).values
         y = df[target].astype(float).values
@@ -398,14 +398,76 @@ class PartnersProcessor:
         # plt.tight_layout()
         # plt.show()
 
+        # Generate Prices (optional)
+        def daily_prices(h, m, dow):
+            # --- Monthly seasonal profile (EUR/MWh) ---
+            # Typical PT/MIBEL pattern
+            month_base = {
+                1: 95,  # Jan – winter, demand-driven high
+                2: 90,
+                3: 85,
+                4: 60,  # Apr – high renewables, low prices
+                5: 55,
+                6: 70,  # Summer starts warming
+                7: 85,  # Jul/Aug peaks
+                8: 90,
+                9: 65,
+                10: 75,
+                11: 90,
+                12: 100  # Dec – highest
+            }
+
+            # --- Hourly shape profile ---
+            # Day–night dynamics in PT market
+            if 2 <= h < 6:
+                hour_adj = -25  # night valley
+            elif 6 <= h < 11:
+                hour_adj = +5  # morning ramp
+            elif 11 <= h < 16:
+                hour_adj = -10  # solar depression
+            elif 16 <= h < 19:
+                hour_adj = +10  # afternoon ramp
+            elif 19 <= h < 22:
+                hour_adj = +25  # evening peak
+            else:
+                hour_adj = -5  # late night decline
+
+            # --- Weekday vs weekend ---
+            if dow >= 5:  # Saturday/Sunday
+                dow_adj = -10  # lower demand on weekends
+            else:
+                dow_adj = 0
+
+            # --- Random components ---
+            daily_volatility = np.random.normal(0, 8)  # daily shocks (≈8 €/MWh)
+            intraday_volatility = np.random.normal(0, 5)  # hourly noise
+
+            # --- Assemble price ---
+            price_mwh = (
+                    month_base[m]
+                    + hour_adj
+                    + dow_adj
+                    + daily_volatility
+                    + intraday_volatility
+            )
+
+            # Prevent negative prices (rare in PT compared to DE)
+            price_mwh = max(price_mwh, 2)
+
+            # Convert to EUR/kWh
+            return price_mwh / 1000
+        df["price (EUR/kWh)"] = df.index.map(
+            lambda t: daily_prices(t.hour, t.month, t.dayofweek)
+        )
+
         # Generate random PEM
-        # scaling_factor = np.random.choice([0.5, 1.0, 2.0])
-        scaling_factor = 1
+        scaling_factor = np.random.choice([0.5, 1.0, 2, 3])
         logger.debug(f"Scaling factor for elasticity: {scaling_factor}")
         self_elasticity = np.array([
             -0.072, -0.082, -0.077, -0.086, -0.126, -0.119, -0.097, -0.083, -0.085, -0.091, -0.085, -0.071,
             -0.066, -0.079, -0.089, -0.074, -0.056, -0.058, -0.061, -0.072, -0.078, -0.079, -0.073, -0.071])
         self_elasticity *= scaling_factor
+        self_elasticity += np.random.normal(0, 0.005, size=self_elasticity.shape)
         pem_types = Elasticity(self_elasticity)
         pem_examples = pem_types.generate_pem()
         pem_type = 'SelfElastic'
@@ -422,7 +484,6 @@ class PartnersProcessor:
             predicted_consumption_ = df['consumption_predicted (kWh)'].iloc[row]
             sensitive_consumption_ = predicted_consumption_ * (price_ ** elasticity_coeff)
             price_sensitive_demand.append(sensitive_consumption_)
-
         df['sensitive consumption (kWh)'] = np.array(price_sensitive_demand).flatten()
         df['sensitive consumption (kWh)'].replace([np.inf, -np.inf], np.nan, inplace=True)
         df.dropna(inplace=True)

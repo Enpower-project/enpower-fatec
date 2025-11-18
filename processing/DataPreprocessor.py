@@ -39,7 +39,7 @@ class DataPreprocessor:
         self.target_t_col = 'price (EUR/kWh)'
         self.target_y = 'log_consumption'
         self.target_t = 'log_price'
-        self.common_causes = ['temperature', 'weekday', 'consumption_lag_1h']
+        self.common_causes = ['temperature', 'weekday', 'month', 'consumption_lag_1']
         self.modifiers = ['hour']
         self.instruments = []
         self.effect_shifters = []
