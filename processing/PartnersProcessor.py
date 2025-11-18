@@ -387,16 +387,6 @@ class PartnersProcessor:
         for j, fname in enumerate(covariates):
             coefs[f"beta_{fname}"] = float(model.coef_[j])
         logger.debug(f"Poisson Regression results:\n {coefs}")
-        # - Debug plots
-        # fig, ax = plt.subplots(figsize=(10, 5))
-        # ax.plot(df.index, y, label='Actual Consumption', color='blue')
-        # ax.plot(df.index, y_hat, label='Predicted Consumption', color='orange')
-        # ax.set_xlabel('Datetime')
-        # ax.set_ylabel('Consumption (kWh)')
-        # ax.set_title(f'Poisson Regression')
-        # ax.legend()
-        # plt.tight_layout()
-        # plt.show()
 
         # Generate Prices (optional)
         def daily_prices(h, m, dow):
