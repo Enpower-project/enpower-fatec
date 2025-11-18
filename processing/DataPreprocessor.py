@@ -68,7 +68,7 @@ class DataPreprocessor:
         if type(self.consumers) == list:
             consumers_dict = {}
             for consumer in self.consumers:
-                data_consumer = self.read_data(consumer)
+                data_consumer = self.read_data(consumer, self.latitude, self.longitude)
                 consumers_dict.update({consumer: data_consumer})
             # Filter by common index
             min_timestamp = min([consumers_dict[consumer].index.min() for consumer in self.consumers])

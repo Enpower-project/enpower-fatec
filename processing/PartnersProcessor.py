@@ -460,19 +460,12 @@ class PartnersProcessor:
             lambda t: daily_prices(t.hour, t.month, t.dayofweek)
         )
 
-        # Generate random PEM
-        scaling_factor = np.random.choice([0.5, 1.0, 2, 3])
-        logger.debug(f"Scaling factor for elasticity: {scaling_factor}")
-        self_elasticity = np.array([
-            -0.072, -0.082, -0.077, -0.086, -0.126, -0.119, -0.097, -0.083, -0.085, -0.091, -0.085, -0.071,
-            -0.066, -0.079, -0.089, -0.074, -0.056, -0.058, -0.061, -0.072, -0.078, -0.079, -0.073, -0.071])
-        self_elasticity *= scaling_factor
-        self_elasticity += np.random.normal(0, 0.005, size=self_elasticity.shape)
-        pem_types = Elasticity(self_elasticity)
-        pem_examples = pem_types.generate_pem()
-        pem_type = 'SelfElastic'
-        logger.debug(f"Selected PEM type: {pem_type}")
-        pem = pem_examples[pem_type]
+        # Get PEM from config
+        elasticity_config = pd.read_json('data/ceve/elasticity_config.json')
+        pem_list = elasticity_config[int(consumer)].tolist()
+        if pem_list is None:
+            raise ValueError(f"Elasticity configuration for consumer {consumer} not found.")
+        pem = np.array(pem_list)
 
         # Price-sensitive consumption
         df = df[df['price (EUR/kWh)'] > 0]
