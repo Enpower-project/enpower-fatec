@@ -480,6 +480,7 @@ class PartnersProcessor:
         df['sensitive consumption (kWh)'] = np.array(price_sensitive_demand).flatten()
         df['sensitive consumption (kWh)'].replace([np.inf, -np.inf], np.nan, inplace=True)
         df.dropna(inplace=True)
+        df.to_csv(f'data/ceve/price_sensitive/{partner}_{consumer}_sensitive.csv')
 
         # Debug plots
         # fig, ax = plt.subplots(figsize=(10, 5))
