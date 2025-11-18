@@ -103,6 +103,11 @@ if __name__ == "__main__":
               'consumers': consumers,
               'city': 'London', 'aggregated': 0}
 
+    # consumers = ['3', '4']
+    # inputs = {'partner': 'validation',
+    #           'consumers': consumers,
+    #           'city': 'London', 'aggregated': 0}
+
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     directory_name = f"results/exec_{timestamp}"
