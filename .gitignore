@@ -1,7 +1,13 @@
 *.csv
 *.pdf
 *.png
-data/*
+data/*/*.csv
+data/*/*.xlsx
+data/*/*.png
+data/*/*.pdf
+data/*/*.pkl
+data/*/*.json
+data/*/*.xls
 .idea/*
 results/*
 
