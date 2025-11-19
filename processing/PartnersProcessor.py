@@ -369,12 +369,12 @@ class PartnersProcessor:
         df['consumption_lag_1h'] = df['consumption (kWh)'].shift(1)
         df['consumption_lag_1d'] = df['consumption (kWh)'].shift(24)
         df['consumption_lag_7d'] = df['consumption (kWh)'].shift(24 * 7)
-        df.dropna(inplace=True)
         # - Add calendar
         df['hour'] = df.index.hour
         df['dayofweek'] = df.index.dayofweek
         df['month'] = df.index.month
         # - Regression
+        df.dropna(inplace=True)
         target, covariates = 'consumption (kWh)', ['temperature', 'hour', 'dayofweek', 'month', 'consumption_lag_1d']
         reg_params = {'alpha': 0.0, 'fit_intercept': True, 'max_iter': 5000, 'tol': 1e-7}
         X = df[covariates].astype(float).values
