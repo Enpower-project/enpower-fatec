@@ -103,7 +103,7 @@ if __name__ == "__main__":
               'consumers': consumers,
               'city': 'London', 'aggregated': 0}
 
-    # consumers = ['3', '4']
+    # consumers = ['3', '4', '5', '6', '9', '10', '13', '17', '21', '22', '23']
     # inputs = {'partner': 'validation',
     #           'consumers': consumers,
     #           'city': 'London', 'aggregated': 0}
