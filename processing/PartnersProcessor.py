@@ -442,7 +442,7 @@ class PartnersProcessor:
             )
 
             # Prevent negative prices (rare in PT compared to DE)
-            price_mwh = max(price_mwh, 2)
+            price_mwh = max(price_mwh, 1)
 
             # Convert to EUR/kWh
             return price_mwh / 1000
@@ -470,7 +470,11 @@ class PartnersProcessor:
         df['sensitive consumption (kWh)'] = np.array(price_sensitive_demand).flatten()
         df['sensitive consumption (kWh)'].replace([np.inf, -np.inf], np.nan, inplace=True)
         df.dropna(inplace=True)
-        df.to_csv(f'data/ceve/price_sensitive/{partner}_{consumer}_sensitive.csv')
+
+        df_save = df[['sensitive consumption (kWh)', 'price (EUR/kWh)', 'hour',
+                      'month', 'dayofweek', 'temperature']].copy()
+        df_save['elasticity'] = df_save.index.map(lambda t: pem[t.hour, t.hour])
+        df_save.to_csv(f'data/ceve/price_sensitive/{partner}_{consumer}_sensitive.csv')
 
         # Debug plots
         # fig, ax = plt.subplots(figsize=(10, 5))
