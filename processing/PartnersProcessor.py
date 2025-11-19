@@ -492,3 +492,13 @@ class PartnersProcessor:
                                   'consumption (kWh)': df['sensitive consumption (kWh)'].astype(np.float64)
                                   })
         return data
+
+    @staticmethod
+    def synthetic(partner, consumer):
+        df = None
+        # todo: get synthetically generated consumer (pre-saved)
+        # todo: adapt to general format:
+        data = pd.DataFrame(data={'price (EUR/kWh)': df['price (EUR/kWh)'].astype(np.float64),
+                                  'consumption (kWh)': df['sensitive consumption (kWh)'].astype(np.float64)
+                                  })
+        return data
