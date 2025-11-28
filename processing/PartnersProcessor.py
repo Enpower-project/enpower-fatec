@@ -1,3 +1,4 @@
+import os
 import requests
 import numpy as np
 import pandas as pd
@@ -495,10 +496,46 @@ class PartnersProcessor:
 
     @staticmethod
     def synthetic(partner, consumer):
-        df = None
-        # todo: get synthetically generated consumer (pre-saved)
-        # todo: adapt to general format:
-        data = pd.DataFrame(data={'price (EUR/kWh)': df['price (EUR/kWh)'].astype(np.float64),
-                                  'consumption (kWh)': df['sensitive consumption (kWh)'].astype(np.float64)
-                                  })
+
+        # synthetic file path
+        file_path = os.path.join("data", f"{partner}", f"{consumer}_sensitive.csv")
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(
+                f"File not found in {file_path} for consumer {consumer} and partner {partner}"
+            )
+
+        logger.debug(f"Reading data from {file_path} for consumer {consumer} and partner {partner}")
+        df = pd.read_csv(file_path)
+
+        # Always use 'reading_time' column as timestamp
+        if "reading_time" not in df.columns:
+            raise KeyError(
+                f"Column 'reading_time' not found in {file_path}."
+            )
+
+        df["reading_time"] = pd.to_datetime(df["reading_time"])
+        df.set_index("reading_time", inplace=True)
+        df.sort_index(inplace=True)
+
+        # Check required columns
+        if "price (EUR/kWh)" not in df.columns:
+            raise KeyError(f"Column 'price (EUR/kWh)' não encontrada em {file_path}.")
+
+        if "sensitive consumption (kWh)" not in df.columns:
+            raise KeyError(f"Column 'sensitive consumption (kWh)' não encontrada em {file_path}.")
+
+        # Matching expected output format
+        data = pd.DataFrame(
+            data={
+                "price (EUR/kWh)": df["price (EUR/kWh)"].astype(np.float64),
+                "consumption (kWh)": df["sensitive consumption (kWh)"].astype(np.float64),
+            },
+            index=df.index
+        )
+
+        logger.debug(
+            f"Consumer {consumer}: {len(data)} observations, "
+            f"Range: {data.index.min()} .. {data.index.max()}"
+        )
+
         return data
