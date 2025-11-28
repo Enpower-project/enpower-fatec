@@ -5,6 +5,7 @@ import pandas as pd
 from os import listdir
 from loguru import logger
 import matplotlib.pyplot as plt
+from xgboost import XGBRegressor
 from sklearn.linear_model import PoissonRegressor
 
 from causality.elasticity import Elasticity
@@ -365,7 +366,7 @@ class PartnersProcessor:
         else:
             raise ValueError(f"Failed to fetch weather data. Status code: {response.status_code}")
 
-        # Poisson Regression
+        # Demand Regression
         # - Add consumption lagged variables
         df['consumption_lag_1h'] = df['consumption (kWh)'].shift(1)
         df['consumption_lag_1d'] = df['consumption (kWh)'].shift(24)
@@ -383,73 +384,32 @@ class PartnersProcessor:
         model = PoissonRegressor(**reg_params)
         model.fit(X, y)
         y_hat = model.predict(X)
+        noise = np.random.normal(0, 0.001, size=y_hat.shape)
+        y_hat += noise
         df['consumption_predicted (kWh)'] = y_hat
-        coefs = {"alpha": float(model.intercept_)}
-        for j, fname in enumerate(covariates):
-            coefs[f"beta_{fname}"] = float(model.coef_[j])
-        logger.debug(f"Poisson Regression results:\n {coefs}")
 
-        # Generate Prices (optional)
-        def daily_prices(h, m, dow):
-            # --- Monthly seasonal profile (EUR/MWh) ---
-            # Typical PT/MIBEL pattern
-            month_base = {
-                1: 95,  # Jan – winter, demand-driven high
-                2: 90,
-                3: 85,
-                4: 60,  # Apr – high renewables, low prices
-                5: 55,
-                6: 70,  # Summer starts warming
-                7: 85,  # Jul/Aug peaks
-                8: 90,
-                9: 65,
-                10: 75,
-                11: 90,
-                12: 100  # Dec – highest
-            }
+        # Price Regression
+        df['price (EUR/kWh)'] = df['price (EUR/kWh)'].apply(lambda x: max(x, 0.001))
+        X_price = df[['hour', 'dayofweek', 'month', 'temperature']].astype(float).values
+        y_price = df['price (EUR/kWh)'].copy()
+        y_price_log = y_price.apply(np.log).astype(float).values
+        model_price = XGBRegressor(random_state=42)
+        model_price.fit(X_price, y_price_log)
+        y_price_hat = model_price.predict(X_price)
+        noise_price = np.random.normal(0, 0.001, size=y_price_hat.shape)
+        y_price_hat += noise_price
+        y_price_hat = np.exp(y_price_hat)
+        df['price (EUR/kWh)'] = y_price_hat
 
-            # --- Hourly shape profile ---
-            # Day–night dynamics in PT market
-            if 2 <= h < 6:
-                hour_adj = -25  # night valley
-            elif 6 <= h < 11:
-                hour_adj = +5  # morning ramp
-            elif 11 <= h < 16:
-                hour_adj = -10  # solar depression
-            elif 16 <= h < 19:
-                hour_adj = +10  # afternoon ramp
-            elif 19 <= h < 22:
-                hour_adj = +25  # evening peak
-            else:
-                hour_adj = -5  # late night decline
-
-            # --- Weekday vs weekend ---
-            if dow >= 5:  # Saturday/Sunday
-                dow_adj = -10  # lower demand on weekends
-            else:
-                dow_adj = 0
-
-            # --- Random components ---
-            daily_volatility = np.random.normal(0, 8)  # daily shocks (≈8 €/MWh)
-            intraday_volatility = np.random.normal(0, 5)  # hourly noise
-
-            # --- Assemble price ---
-            price_mwh = (
-                    month_base[m]
-                    + hour_adj
-                    + dow_adj
-                    + daily_volatility
-                    + intraday_volatility
-            )
-
-            # Prevent negative prices (rare in PT compared to DE)
-            price_mwh = max(price_mwh, 1)
-
-            # Convert to EUR/kWh
-            return price_mwh / 1000
-        df["price (EUR/kWh)"] = df.index.map(
-            lambda t: daily_prices(t.hour, t.month, t.dayofweek)
-        )
+        # plt.figure(figsize=(10, 5))
+        # plt.plot(df.index, y_price, label='Original Price (EUR/kWh)', alpha=0.7)
+        # plt.plot(df.index, y_price_hat, label='Generated Price (EUR/kWh)')
+        # plt.xlabel('Datetime')
+        # plt.ylabel('Price (EUR/kWh)')
+        # plt.title('Generated Price Time Series')
+        # plt.legend()
+        # plt.tight_layout()
+        # plt.show()
 
         # Get PEM from config
         elasticity_config = pd.read_json('data/ceve/elasticity_config.json')

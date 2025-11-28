@@ -1,3 +1,4 @@
+import json
 import random
 import warnings
 import numpy as np
@@ -151,6 +152,33 @@ class ElasticityModel:
             plt.tight_layout()
             plt.savefig(f'{self.dir_name}/elasticity_{self.data.consumers}.png')
             plt.close(fig)
+
+            if self.data.partner == 'validation':
+                with open('data/ceve/elasticity_config.json', 'r') as f:
+                    elasticity_config = json.load(f)
+                true_elasticities = np.array(elasticity_config.get(self.data.consumers))
+                true_elasticities_diag = np.diag(true_elasticities)
+                fig, ax = plt.subplots(figsize=(10, 5))
+                sns.heatmap(true_elasticities_diag.reshape(1, -1), cmap='copper', annot=True,
+                            fmt=".3f", annot_kws={'rotation': 90},
+                            cbar_kws=dict(location="top", shrink=0.5))
+                cbar = ax.collections[0].colorbar
+                cbar.set_label('Elasticity', labelpad=20)
+                plt.tight_layout()
+                plt.savefig(f'{self.dir_name}/elasticity_{self.data.consumers}_real.png')
+                plt.close(fig)
+
+                # Plot comparison
+                fig, ax = plt.subplots(figsize=(10, 5))
+                plt.plot(marg_effect.ravel(), label='Estimated', marker='o')
+                plt.plot(true_elasticities_diag, label='True', marker='x')
+                plt.xlabel('Hour')
+                plt.ylabel('Elasticity')
+                plt.title('Estimated vs True Self-Elasticities')
+                plt.legend()
+                plt.tight_layout()
+                plt.savefig(f'{self.dir_name}/elasticity_{self.data.consumers}_comparison.png')
+                plt.close(fig)
 
     @staticmethod
     def ranking(consumers, elasticities, plot=1, dir_name=''):
