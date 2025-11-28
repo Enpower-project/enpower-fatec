@@ -438,15 +438,16 @@ class PartnersProcessor:
         df_save.to_csv(f'data/ceve/price_sensitive/{partner}_{consumer}_sensitive.csv')
 
         # Debug plots
-        # fig, ax = plt.subplots(figsize=(10, 5))
-        # ax.plot(df.index, df['consumption (kWh)'], label='Original Consumption', color='blue')
-        # ax.plot(df.index, df['consumption_predicted (kWh)'], label='Predicted Consumption', color='green')
-        # ax.plot(df.index, df['sensitive consumption (kWh)'], label='Price-Sensitive Consumption', color='orange')
-        # ax.set_xlabel('Datetime')
-        # ax.set_ylabel('Consumption (kWh)')
-        # ax.legend()
-        # plt.tight_layout()
-        # plt.show()
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(df.index, df['consumption (kWh)'], label='Original Consumption', color='blue')
+        ax.plot(df.index, df['consumption_predicted (kWh)'], label='Predicted Consumption', color='green')
+        ax.plot(df.index, df['sensitive consumption (kWh)'], label='Price-Sensitive Consumption', color='orange')
+        ax.set_xlabel('Datetime')
+        ax.set_ylabel('Consumption (kWh)')
+        ax.legend()
+        plt.tight_layout()
+        plt.savefig(f'data/ceve/price_sensitive/{partner}_consumption_{consumer}.png')
+        plt.close(fig)
 
         # Final data
         data = pd.DataFrame(data={'price (EUR/kWh)': df['price (EUR/kWh)'].astype(np.float64),
