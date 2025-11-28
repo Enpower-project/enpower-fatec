@@ -154,6 +154,7 @@ class ElasticityModel:
             plt.close(fig)
 
             if self.data.partner == 'validation':
+                # todo: improve plot with CIs
                 with open('data/ceve/elasticity_config.json', 'r') as f:
                     elasticity_config = json.load(f)
                 true_elasticities = np.array(elasticity_config.get(self.data.consumers))

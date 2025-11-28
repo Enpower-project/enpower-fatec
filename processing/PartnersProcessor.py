@@ -384,8 +384,8 @@ class PartnersProcessor:
         model = PoissonRegressor(**reg_params)
         model.fit(X, y)
         y_hat = model.predict(X)
-        noise = np.random.normal(0, 0.001, size=y_hat.shape)
-        y_hat += noise
+        # noise = np.random.normal(0, 0.001, size=y_hat.shape)
+        # y_hat += noise
         df['consumption_predicted (kWh)'] = y_hat
 
         # Price Regression
@@ -396,8 +396,8 @@ class PartnersProcessor:
         model_price = XGBRegressor(random_state=42)
         model_price.fit(X_price, y_price_log)
         y_price_hat = model_price.predict(X_price)
-        noise_price = np.random.normal(0, 0.001, size=y_price_hat.shape)
-        y_price_hat += noise_price
+        # noise_price = np.random.normal(0, 0.001, size=y_price_hat.shape)
+        # y_price_hat += noise_price
         y_price_hat = np.exp(y_price_hat)
         df['price (EUR/kWh)'] = y_price_hat
 
