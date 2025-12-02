@@ -106,7 +106,7 @@ if __name__ == "__main__":
     consumers = ['3', '4', '5', '6', '9', '10', '13', '17', '21', '22', '23']
     inputs = {'partner': 'validation',
               'consumers': consumers,
-              'city': 'London', 'aggregated': 0}
+              'city': 'Braga', 'aggregated': 0}
 
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
