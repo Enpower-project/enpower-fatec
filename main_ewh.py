@@ -2,6 +2,7 @@ import os
 import json
 import random
 import requests
+import matplotlib
 import numpy as np
 import pandas as pd
 from loguru import logger
@@ -12,6 +13,10 @@ import settings
 from ewh.ewh_flex.ewh_opt_functions import resample_data
 from ewh.ewh_flex import ewh_optimization, build_varBackpack
 from ewh.ewh_flex.ewh_power_functions import real_ewh_load_estimator, create_usage_dataset
+
+matplotlib.rcParams.update({'font.size': 18, 'font.family': 'serif',
+                            'font.serif': 'cmr10', 'mathtext.fontset': 'cm',
+                            'axes.formatter.use_mathtext': True, 'axes.unicode_minus': False})
 
 
 def get_ewh_usage(days=1):
@@ -215,26 +220,30 @@ def run_ewh_optimization(inputs, dir_path=None):
         logger.info(f"Optimization completed for cluster {i+1}/{nr_clusters}")
 
     # Plot original vs optimized load for each cluster
-    cmap = plt.cm.get_cmap('tab20')
-    indices = np.random.choice(range(cmap.N), size=nr_clusters, replace=False)
-    colors = [cmap(i) for i in indices]
-    fig, ax = plt.subplots(figsize=(10, 6))
+    colors = plt.cm.get_cmap('tab10', nr_clusters)
+    fig, ax = plt.subplots(figsize=(12, 7))
     for i in range(nr_clusters):
         cluster_data = out[f'cluster_{i}']
+        cluster_load = [x / 1000 for x in cluster_data['mean_ewh_load']]
         timestamps = pd.date_range(start=datetime.combine(today, datetime.min.time()), periods=24, freq='H')
 
         # Original mean load
-        ax.plot(timestamps, cluster_data['mean_ewh_load'], label=f'Cluster {i} Original', linestyle='--', color=colors[i])
+        ax.plot(timestamps, cluster_load, label=f'Cluster {i}', linestyle='--', color=colors(i))
 
         # Optimized load
         opt_load = cluster_data['opt_output']['opt_diagrams']['optimized_load']
-        ax.plot(timestamps, opt_load, label=f'Cluster {i} Optimized', linestyle='-', color=colors[i])
-    ax.set_xlabel('Time')
-    ax.set_ylabel('EWH Load (W)')
-    ax.set_title('Original vs Optimized EWH Load Profiles by Cluster')
-    ax.legend()
+        opt_load = [float(x) / 1000 for x in opt_load]
+        ax.plot(timestamps, opt_load, label=f'Cluster {i} (Opt.)', linestyle='-', color=colors(i))
+    ax.set_xlabel('Hour')
+    ax.set_ylabel('EWH Load (kWh)')
+    ax.set_facecolor('#FBF6EF')
+    ax.set_ylim(0, None)
+    ax.set_xlim([timestamps[0], timestamps[-1]])
+    ax.set_xticks(timestamps)
+    ax.set_xticklabels([int(ts.strftime('%H')) for ts in timestamps])
+    ax.legend(loc='upper left', frameon=False, ncols=nr_clusters, bbox_to_anchor=(0, 1.35))
     plt.tight_layout()
-    plt.savefig(f"{dir_path}/ewh_optimization_comparison.png")
+    plt.savefig(f"{dir_path}/ewh_optimization_comparison.pdf")
 
     # --- Save clustering results to JSON ---
     json.dump(out, open(f"{dir_path}/opt_results.json", 'w'), indent=4)
@@ -265,7 +274,7 @@ stdInput = {
 if __name__ == "__main__":
 
     # Input data
-    input = {'task_id': '56a7c1db-281b-4986-8960-da966a55fa38'}
+    input = {'task_id': 'c9a2a4bc-d8bc-4184-96c3-9061aa120cb7'}
 
     # Prepare output folder
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

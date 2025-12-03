@@ -201,7 +201,7 @@ class ElasticityModel:
             sns.heatmap(df_sorted, annot=True, fmt=".2f", center=0, cmap='coolwarm', cbar=True, ax=ax,
                         annot_kws={"size": 5})
             ax.set_ylabel('Consumer ranking (desc. order)', fontsize=8)
-            ax.set_xlabel('Hour', fontsize=5)
+            ax.set_xlabel('Hour', fontsize=8)
             ax.set_yticks(np.arange(df_sorted.shape[0]) + 0.5, minor=False)
             ax.set_yticklabels(df_sorted.index, fontsize=3)
             ax.tick_params(axis='x', labelsize=3)
