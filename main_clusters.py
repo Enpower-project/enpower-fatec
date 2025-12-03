@@ -100,71 +100,6 @@ def clustering_process(df, range_n_clusters, dir_name, use_ewh=False):
     plt.savefig(f"{dir_name}/silhouette_scores.png")
     plt.close()
 
-    # --- Plot cluster consumption profiles ---
-    colors = cm.get_cmap('tab10', best_k)
-    plt.figure(figsize=(10, 6))
-    for cluster in range(best_k):
-        cluster_data = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).values
-        if cluster_data.shape[1] >= 24:
-            color = colors(cluster)
-            for row in cluster_data[:, :24]:
-                plt.plot(row, color=color, alpha=0.2)
-            plt.plot(np.mean(cluster_data[:, :24], axis=0), color=color, linewidth=2, label=f'Cluster {cluster}')
-    plt.xlabel('Hour')
-    plt.ylabel('Consumption (kWh)')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(f"{dir_name}/cluster_consumption.png")
-    plt.close()
-
-    # --- Plot cluster elasticity profiles ---
-    plt.figure(figsize=(10, 6))
-    for cluster in range(best_k):
-        cluster_data = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).values
-        if cluster_data.shape[1] >= 48:
-            color = colors(cluster)
-            for row in cluster_data[:, 24:48]:
-                plt.plot(row, color=color, alpha=0.2)
-            plt.plot(np.mean(cluster_data[:, 24:48], axis=0), color=color, linewidth=2, label=f'Cluster {cluster}')
-    plt.xlabel('Hour')
-    plt.ylabel('Elasticity')
-    plt.legend()
-    plt.grid(True)
-    plt.savefig(f"{dir_name}/cluster_elasticity.png")
-    plt.close()
-
-    # --- Plot EWH profiles if present ---
-    if use_ewh:
-        plt.figure(figsize=(10, 6))
-        for cluster in range(best_k):
-            cluster_data = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).values
-            if cluster_data.shape[1] >= 72:
-                color = colors(cluster)
-                for row in cluster_data[:, -48:-24]:
-                    plt.plot(row, color=color, alpha=0.2)
-                plt.plot(np.mean(cluster_data[:, -48:-24], axis=0), color=color, linewidth=2, label=f'Cluster {cluster}')
-        plt.xlabel('Hour')
-        plt.ylabel('EWH Load (Wh)')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(f"{dir_name}/cluster_ewh_load.png")
-        plt.close()
-
-        plt.figure(figsize=(10, 6))
-        for cluster in range(best_k):
-            cluster_data = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).values
-            if cluster_data.shape[1] >= 96:
-                color = colors(cluster)
-                for row in cluster_data[:, -24:]:
-                    plt.plot(row, color=color, alpha=0.2)
-                plt.plot(np.mean(cluster_data[:, -24:], axis=0), color=color, linewidth=2, label=f'Cluster {cluster}')
-        plt.xlabel('Hour')
-        plt.ylabel('EWH Load (Wh)')
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(f"{dir_name}/cluster_ewh_usage.png")
-        plt.close()
-
     # --- Prepare JSON output ---
     clusters_output = {
         'optimal_clusters': int(best_k),
@@ -185,6 +120,79 @@ def clustering_process(df, range_n_clusters, dir_name, use_ewh=False):
             mean_ewh_usage = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).iloc[:, -24:].mean().tolist()
             clusters_output['clusters'][str(cluster)]['mean_ewh_load'] = mean_ewh_load
             clusters_output['clusters'][str(cluster)]['mean_ewh_usage'] = mean_ewh_usage
+
+    # --- Figure layout ---
+    fig, axs = plt.subplots(2, 2, figsize=(14, 7))
+
+    profiles = ["consumption", "elasticity", "ewh_load", "ewh_usage"]
+    captions = ["Consumption (kWh)", "Elasticity", "EWH Load (kWh)", "EWH Usage"]
+    timestamps = list(range(24))  # 0–23 hours
+    tick_positions = list(range(0, 24, 2))  # every 2 hours
+    tick_labels = [h for h in tick_positions]
+
+    colors = cm.get_cmap('tab10', best_k)
+
+    # --- Helper to extract slices ---
+    def extract_profile(cluster_data, feature):
+        if feature == "consumption":
+            return cluster_data[:, :24]
+        elif feature == "elasticity" and cluster_data.shape[1] >= 48:
+            return cluster_data[:, 24:48]
+        elif feature == "ewh_load" and cluster_data.shape[1] >= 72:
+            return cluster_data[:, -48:-24] / 1000  # Wh → kWh
+        elif feature == "ewh_usage" and cluster_data.shape[1] >= 96:
+            return cluster_data[:, -24:]
+        return None
+
+    # --- Plot all 4 subplots ---
+    for i, feature in enumerate(profiles):
+        ax = axs[i // 2, i % 2]
+
+        for cluster in range(best_k):
+            color = colors(cluster)
+            cluster_data = df[df['cluster'] == cluster].drop(columns=['house', 'cluster']).values
+
+            # Extract feature slice
+            prof_matrix = extract_profile(cluster_data, feature)
+            if prof_matrix is None:
+                continue
+
+            # Plot all individual curves
+            for row in prof_matrix:
+                ax.plot(timestamps, row, color=color, alpha=0.15)
+
+            # Plot mean curve
+            mean_profile = np.mean(prof_matrix, axis=0)
+            ax.plot(timestamps, mean_profile, color=color, linewidth=2)
+
+        # Style
+        ax.set_xlabel("Hour")
+        ax.set_xlim([timestamps[0], timestamps[-1]])
+        ax.set_xticks(tick_positions)
+        ax.set_xticklabels(tick_labels)
+
+        if feature != "elasticity":
+            ax.set_ylim(bottom=0)
+
+        ax.set_facecolor("#FBF6EF")
+        ax.set_ylabel(captions[i])
+
+    # --- Global legend (once) ---
+    import matplotlib.lines as mlines
+    legend_handles = [
+        mlines.Line2D([], [], color=colors(c), linewidth=3, label=f"Cluster {c}")
+        for c in range(best_k)
+    ]
+    fig.legend(handles=legend_handles,
+               loc='upper center',
+               ncol=best_k,
+               frameon=False,
+               fontsize=16,
+               bbox_to_anchor=(0.5, 0.98))
+
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    plt.savefig(f"{dir_name}/cluster_profiles.pdf")
+    plt.close(fig)
 
     return clusters_output
 
