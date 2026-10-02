@@ -1,0 +1,72 @@
+Copyright (C) 2026, INESC TEC
+
+FATEC: A tool designed to assess the flexibility of participants of energy communities. It processes data and acquires weather information from external providers, and uses a causality model to compute the price elasticity of demand of consumers. The tool includes an API to execute tasks asynchronously and store results in a database.
+
+This software is authored by:
+Carlos Silva
+Rafael Friães
+
+This program makes use and is distributed with the following libraries:
+[DC3.1]xlrd (https://github.com/python-excel/xlrd)
+openpyxl (https://github.com/openpyxl/openpyxl)
+geopy (https://github.com/geopy/geopy)
+scikit-learn (https://github.com/scikit-learn/scikit-learn)
+requests (https://github.com/psf/requests)
+seaborn (https://github.com/mwaskom/seaborn)
+matplotlib (https://github.com/matplotlib/matplotlib)
+EconML (https://github.com/py-why/EconML)
+DoWhy (https://github.com/py-why/dowhy)
+XGBoost (https://github.com/dmlc/xgboost)
+holidays (https://github.com/vacanza/holidays)
+statsmodels (https://github.com/statsmodels/statsmodels)
+Numba (https://github.com/numba/numba)
+NumPy (https://github.com/numpy/numpy)
+pandas (https://github.com/pandas-dev/pandas)
+PuLP (https://github.com/coin-or/pulp)
+Plotly (https://github.com/plotly/plotly.py)
+Streamlit (https://github.com/streamlit/streamlit)
+FastAPI (https://github.com/fastapi/fastapi)
+Uvicorn (https://github.com/encode/uvicorn)
+Pydantic (https://github.com/pydantic/pydantic)
+SQLAlchemy (https://github.com/sqlalchemy/sqlalchemy)
+psycopg2 (https://github.com/psycopg/psycopg2)
+python-dotenv (https://github.com/theskumar/python-dotenv)
+Loguru (https://github.com/Delgan/loguru)
+pytest (https://github.com/pytest-dev/pytest)
+tsg-client (https://github.com/INESCTEC/tsg-client)
+PostgreSQL (https://github.com/postgres/postgres)
+Open-Meteo ERA5 API (https://github.com/open-meteo/open-meteo)
+ewh-flex (https://github.com/INESCTEC/ewh-flex)
+HiGHS (https://github.com/ERGO-Code/HiGHS)
+
+You can reach INESC TEC Technology Transfer Office (TTO) at tech-transfer@inesctec.pt, or
+Campus da Faculdade de Engenharia da Universidade do Porto
+Rua Dr. Roberto Frias
+4200-465 Porto
+Portugal
+
+If you use FATEC in a work that leads to a scientific publication, we would appreciate it if you would kindly cite FATEC in your manuscript.
+
+C. A. M. Silva et al., "An elasticity-aware clustering approach for EWH load optimization in residential energy systems," 2026 22nd International Conference on the European Energy Market (EEM), Trondheim, Norway, 2026, pp. 1-6, doi: 10.1109/EEM68581.2026.11589607.
+
+The paper can be found at [DC5.1]https://ieeexplore.ieee.org/document/11589607.
+
+Licensed under the terms of MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
