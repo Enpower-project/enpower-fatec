@@ -1,6 +1,3 @@
-*.csv
-*.pdf
-*.png
 data/*/*.csv
 data/*/*.xlsx
 data/*/*.png
