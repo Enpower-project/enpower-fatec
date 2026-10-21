@@ -1,4 +1,4 @@
-![INESCTEC-banner](https://raw.githubusercontent.com/INESCTEC/.github/main/profile/inesctec_banner.png)
+![FATEC banner](docs/fatec_banner.png)
 
 # FATEC - Flexibility Assessment tool for Energy Communities
 
@@ -229,6 +229,10 @@ This project is licensed under the MIT License — see [`LICENSE`](LICENSE). Thi
 - **Carlos Silva** (INESC TEC) — FATEC tool: data processing, causal elasticity analysis, API service.
 - **José Paulos** (INESC TEC) — EWH optimization module (`ewh/`).
 - **Rafael Friães** (INESC TEC) — FATEC development and validation.
+
+## Acknowledgements
+This work was developed within the following projects:
+- **ENPOWER**: This project has received funding from the European Union’s Horizon Europe research and innovation programme under grant agreement No 101096354.
 
 ### Contacts
 
